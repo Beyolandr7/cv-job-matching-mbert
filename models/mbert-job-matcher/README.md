@@ -5,115 +5,121 @@ tags:
 - feature-extraction
 - dense
 - generated_from_trainer
-- dataset_size:180
+- dataset_size:300
 - loss:CosineSimilarityLoss
 base_model: google-bert/bert-base-multilingual-cased
 widget:
-- source_sentence: 'TABLE GAMES DEALER Summary Throughout the years, I''ve been trained
-    to give only the best service and customer care. It is not only about doing the
-    job right, but to make sure the customer is satisfied with their experience. I''ve
-    progressed from a cashier, to a waitress, to my most recent employment as a blackjack
-    dealer, giving me a total of three '
+- source_sentence: DIRECTOR OF INFORMATION TECHNOLOGY Summary I am a solutions-oriented
+    professional with solid experience in various IT environments. LEADERSHIP Motivating
+    and managing and a robust team of internal and remote staff members Establishing
+    and maintaining effective partnerships, through collaboration and information
+    technology in support of the organization. Managing the day-to-day responsibilities
+    of a 24x7x 365 IT organization prudently. Managing a large IT environment with
+    ~10,000 SaaS. Assigning clear authority and holding others accountable for goal
+    achievement. Skills COMMUNICATION Collaborating with clients and fostering a positive
+    business relationship to meet all levels
   sentences:
-  - 'APPIAN BPM Architect Position: APPIAN BPM Architect Location: Washington DC (Hybrid)
-    Experience: 13+ Years Work type: C2C & W2 PETADATA is currently looking to hire
-    for the position of APPIAN BPM Architect for one of their clients. Roles & Responsibilities:
-    The Ideal candidate should develop and test user management business process designs,
-    in App'
-  - 'Accountant (3+ years AP/AR exp. req.) Accountant (3+ years AP/AR exp. req.)Location:
-    Cleveland, OHSalary: $55,000-$60,000 + BenefitsBenefits: Medical, Dental, Vision,
-    Life, 401k + match, Holidays, Sick, and PTOJob Type: Full-Time, HybridTypical
-    Hours: 8-5 M-F, 40 hoursStart Date: ASAPSponsorship is not available Accountant
-    Description Our client is'
-  - Lead Lab Engineer Description - External At Trane TechnologiesTM and through our
-    businesses including Trane® and Thermo King®, we create innovative climate solutions
-    for buildings, homes, and transportation that challenge what’s possible for a
-    sustainable world. We're a team that dares to look at the world's challenges and
-    see impactful possibiliti
-- source_sentence: 'FIELD NURSE Professional Summary California-licensed Vocational
-    Nurse with 25+ years of experience. Maintain strong reputation for achieving high
-    levels of patient satisfaction. Works effectively as a team member and interact
-    in a positive manner with patients, including difficult individuals. Core Qualifications
-    CA License #VN133323 Skill Highligh'
+  - Academic Tutor. part time tutor opening for general education courses, retired
+    instructors encouraged to apply
+  - Kitchen and Bath Designer. Company DescriptionTimberline Kitchen & Bath, Inc.
+    is a reputable company that specializes in creating exceptional kitchen and bath
+    designs. With over 40 years of experience,
+  - Tooling Design Engineer. Cullerton Group has a new opportunity for a Tooling Design
+    Engineer in Mossville, IL. The work will be done onsite. This is a long term contract.
+    It can lead to permanent employment with our customer. Compensation is $90,000/yr
+    + benefits (vision, dental,
+- source_sentence: Rachael Lobdell Summary . Compassionate Senior Outreach Advocate
+    with 13 + years of experience working in public and private agencies to upgrade
+    health and dignity within vulnerable populations. Creativeand adaptable leader
+    dedicated to doing whatever necessary to meet client needs, including customizing
+    established programs. Self-motivated and deeply engaged with client and supporter
+    communities. Skills Confidential data protection Data entry Scheduling clients
+    for evaluations for Managed Long Term Care Intake and Submission of Medicaid applications
+    for clients Intake and submission of Pool Trust for Long Term Care clients Excellent
+    Communication skills
   sentences:
-  - 'Private Executive Chef (Michelin Star) On-site Position in Atherton, CAFull Time
-    (40 hours/week), Non-Exempt/Hourly. Work Hours: 9:00 am - 5:30 pm (Weekend availability
-    and flexibility required) COMPENSATION: $50 - $82/hour, DOE. (Non-Exempt/Hourly)
-    Discretionary Bonus (Up to 20%) Health Insurance Paid Vacation, Sick Days Paid
-    Meal Breaks Regular R'
-  - Clinical Sales Specialist, Community Specialties - Yonkers, NY Clinical Sales
-    Specialist, Community Specialties Yonkers, NY Developing innovative therapies
-    is one of the most challenging, most essential, and personally rewarding fields
-    in science. This is the most exciting time to be a part of Astellas, a company
-    with a uniquely collaborative and p
-  - 'QRM Application Support Engineer A financial firm is looking for a QRM Application
-    Support Engineer to join their team in New York, NY. Compensation: $150-180k Responsibilities
-    Install and configure all QRM applications Periodically validate the environment
-    through diagnostic tests Liaise across IT domains to deliver QRM including but
-    not limited t'
-- source_sentence: INFORMATION TECHNOLOGY SPECIALIST I Professional Summary Skills
-    account management, cables, cabling, Help Desk, Linux, MS Exchange server, Sharepoint,
-    network security, desktop support, Unix, HP Unix, VBscript, Visual Basic Programming,
-    Windows Server Active Directory account management, Help Desk, Linux, MS Exchange
-    server 2010, network/server sec
+  - Maths Teacher. Maths Teacher required for August 2024, US passport required.Teaching
+    qualification required.Salary between $40,000 - $50,000 with potential accommodation
+  - 2024-2025 Math 7-8 Teacher - GUINN MS. Primary Location LAS VEGAS-GUINN, KENNY
+    MS Work Locations GUINN, KENNY MS Job MS Teacher Organization Region Two Job Level
+    Day Job Job Posting Apr 18, 2024, 4:00:40 PM Unposting Date Ongoing Location Title
+    Tier Year 0434-2024-2025-Title I MS-Tier I-Guinn, Kenny C. MS
+  - 'Childcare Teacher. Join a strong community where all we do is care-for the children
+    and families we serve every day, as well as for our dedicated team members. Our
+    people are our best asset. We listen and we know what you''re looking for: You
+    want benefits. We support you with a minimum 50% childcare discount, immediate
+    access to benefits, innovative health programs,'
+- source_sentence: ELECTRONIC HEALTH RECORD OPTIMIZATION SPECIALIST Skill Highlights
+    Analyst skills - Managed care contract analysis, payment analysis and appeal,
+    quality data analysis and Above average computer skills - Microsoft Office Suite,
+    Adobe (full version), Athena Clarity, Crystal Reports, Internet and email proficiency
+    Professional Experience Electronic Health Record Optimization Specialist Company
+    Name － City , State Assist primary care practices and providers to improve quality
+    scores through expertise in practice workflow, electronic health record systems,
+    and quality measures. Assists practices in implementing and using systems (quality
+    reporting, EHR modules) to improve patient
   sentences:
-  - 'Assistant Executive Chef / Kitchen Manager Hiring immediately for full-time Assistant
-    Executive Chef or Kitchen Manager or Culinary Manager or Senior Kitchen Manager:
-    Benefits We Offer Eligible for medical, dental, 401(K) retirement plan and paid
-    time offCompetitive pay and bonus eligibilityPaid management training programOpportunity
-    to work with a'
-  - 'Medical Assistant Company Description Medically Modern is a leading provider
-    of innovative Continuous Glucose Monitoring (CGM) solutions for individuals managing
-    diabetes. Our mission is to democratize access to the latest in diabetes care,
-    ensuring cutting-edge technology is within reach for all patients. We handle every
-    step of the process, from '
-  - 'Assistant Sales Manager Are you ready to grow your career? Empire Today is looking
-    for an Assistant Sales Manager to support our dynamic Sales Team. The Assistant
-    Sales Manager is responsible for assisting the market Sales Manager in the achievement
-    of the Market sales goals by coaching and developing Sales Consultants and ensuring
-    compliance . We '
-- source_sentence: SOUS CHEF Summary To bring my positive attitude, strong work ethic
-    and strong team attitude to a new career opportunity. Highlights Adaptive team
-    player Customer service expert Strong organizational skills Deadline-driven Focused
-    and driven Positive attitude Accomplishments Supported all kitchen operations
-    when chef was absent. Assisted in maintain
+  - 'RN - Medical/Surgical - Travel. Gross Pay (weekly): $2786.8 Taxable Pay (weekly):
+    1372.8 Non-taxable Pay (weekly): 1414.0 RN - Medical/Surgical - Travel Shift:
+    07:00 PM to 07:00 AM Location: Charlottesville, VA Scheduled Hours : 48'
+  - 'Preschool Cook. Join a strong community where all we do is care-for the children
+    and families we serve every day, as well as for our dedicated team members. Our
+    people are our best asset. We listen and we know what you''re looking for: You
+    want benefits. We support you with a minimum 50% childcare discount, immediate
+    access to benefits, innovative health programs,'
+  - 'ETL Engineer with Ab Initio. Position : ETL Engineer with Ab InitioJob Type:
+    Hybrid Location: Jersey City, New Jersey Nice to haveAWSHadoop and Spark knowledge
+    (we are migrating legacy ETLs to Spark based processing framework)Experience in
+    AWS cloud is preferred.Knowledge of Kafka, Unix, python is desirable'
+- source_sentence: 'NATIONAL ADMINISTRATOR, POPULATION HEALTH AND ASSOCIATE DIRECTOR,
+    VISIT CLINICAL PRACTICE Education Maters Certificate in Lean Six Sigma, Healthcare
+    2015 Villanova University City , State MPH Masters of Public Health, Health Care
+    Administration 2012 West Chester University City , State M.D. : Medicine 2001
+    Saint Petersburg State Medical Academy City , Russia Executive Profile Healthcare
+    executive with 16+ years of progressive experience in acute and post-acute care
+    settings. Experienced in clinical operations, process improvement, quality, population
+    health management, clinical integration, business development and marketing strategy
+    in for-profit, and nonprofit health systems.'
   sentences:
-  - Sr. Engineer, Failure Analysis & Cell Development ROLE QuantumScape is seeking
-    an experienced and highly motivated failure analysis engineer. You will work in
-    our state-of-the art lab, developing new test methods and characterization techniques
-    that steer improvements to our novel solid-state battery processes and materials.
-    REQUIRED EXPERIENCE & S
-  - 'Restaurant Crewmember - Cook, Cashier, and Customer Service Starting hiring pay
-    range (based on location, experience, qualifications, etc.): $12+ / hour Restaurant
-    Crewmembers at Raising Cane’s will wear many hats (including a Raising Cane’s
-    hat) while working hard and having fun as a critical part of the Restaurant team.
-    We are hiring immediately '
-  - Cook PRN Description Introduction Do you have the PRN career opportunities as
-    a(an) Cook PRN you want with your current employer? We have an exciting opportunity
-    for you to join Parkridge Medical Center which is part of the nation's leading
-    provider of healthcare services, HCA Healthcare. Benefits Parkridge Medical Center,
-    offers a total rewards pa
-- source_sentence: SALES Professional Summary Experienced manager with excellent client
-    and project management skills. Action-oriented with strong ability to communicate
-    effectively with technology, executive, and business audiences. Analyst with extensive
-    experience in Microsoft Office . Proficiencies include Microsoft Word and Microsoft
-    Outlook . Can effectively mu
+  - 'RN Medical/Surgical. Job Description Facility: ALBIR St Vincents Birmingham-50035
+    Position: Registered Nurse, Medical-Surgical Location: Birmingham, AL Shift Details:
+    2 Hours per Week: Shift Hours: 19:00 - 07:30Duration: 13 weeksOn Call: Yes Benefits
+    Bluebird Features and Benefits : Competitive compensation & stipends Weekly pay
+    Day 1 Health Benefits - Medical , Vision,'
+  - 2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN
+    C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three
+    Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing
+  - 'Senior Applications Engineer - Finance. A law firm is looking for a Senior Applications
+    Engineer - Finance to join their team in New York, NY. Compensation: $120-170k
+    The Senior Applications Engineer, Finance acts as IT owner of several applications
+    and platforms owned by the firm#39;s Finance team. These include Elite 3E, Design
+    Gallery, Chrome River, eBillingHub, IntApp Time, Proforma Tracker, Star Collect,
+    integrations, mobili'
+- source_sentence: KINDERGARTEN TEACHER Summary Dedicated educator committed to creating
+    a classroom atmosphere that is stimulating, encouraging and supportive for all
+    students. Skilled ESL Instructor who uses effective and efficient methods of teaching,
+    while focusing on the individual needs of each student. Skills Microsoft Office
+    Academic assessment methods Whole Brain Teaching techniques as classroom management/procedures
+    Certified ESL Instructor Proficiency in differentiated insdtruction Co-teaching
+    experience in kindergarten Experienced with Smart Board Proficient in MS Word,
+    PowerPoint, Excel Experience 09/2013 to Current Kindergarten Teacher Company Name
+    － City , State Implemented Daily 5 Language
   sentences:
-  - Lead Lab Engineer Description - External At Trane TechnologiesTM and through our
-    businesses including Trane® and Thermo King®, we create innovative climate solutions
-    for buildings, homes, and transportation that challenge what’s possible for a
-    sustainable world. We're a team that dares to look at the world's challenges and
-    see impactful possibiliti
-  - Banquet Chef Description:ESSENTIAL FUNCTIONS:Responsible for writing transfers
-    and food requisitions which are overseen by the Executive Chef or Executive Sous
-    Chef.Prepare, together with assigned cooks, food items designated by the Executive
-    Chef according to the property's standard recipes and policies.Promote teamwork
-    between kitchen and banquet
-  - Project Manager HRIS Job SummaryThe Project Manager - HRIS will be a primary figure
-    in leading the day-to-day project planning, execution coordination and tracking,
-    and facilitation of change (both technical and non-technical) across the company
-    for major business system implementation projects new software implementations
-    (Deltek, Procore or simil
+  - 'Tax & Estate Planning Attorney. Fast-paced, mid-size, 25-year, collaborative
+    law firm is seeking an Associate Attorney to work in a team environment across
+    two departments, as follows: 1. Protecting Promises Department - handle 4 5 RLT
+    consultations a week for families with a net worth up to $10million using our
+    proven process 2. Wealth Strategies Department - provide research and project
+    support for our work with successful families and business owners with a net worth
+    of $20 - $200 million. We are willing to, and enjoy, training. Experience in life,'
+  - 2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN
+    C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three
+    Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing
+  - 'DevOps Engineer - Only W2. Position: DevOPs Engineer( Only W2 Required)Location:
+    Houston, TX / Chicago, IL( initially on site later Hybrid)Exprience:5-7 years(
+    NO OPT''s) Candidate must Have problem solving mindset and passionate to learn
+    and adapt.Must have Strong Foundation in core DevOPs Principles and Practices.
+    Primary Skills:AWS CloudNO SQL Data BaseCI/CDDisaster RecoveryScalabilityDR Testing'
 pipeline_tag: sentence-similarity
 library_name: sentence-transformers
 ---
@@ -167,9 +173,9 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer("sentence_transformers_model_id")
 # Run inference
 sentences = [
-    'SALES Professional Summary Experienced manager with excellent client and project management skills. Action-oriented with strong ability to communicate effectively with technology, executive, and business audiences. Analyst with extensive experience in Microsoft Office . Proficiencies include Microsoft Word and Microsoft Outlook . Can effectively mu',
-    'Project Manager HRIS Job SummaryThe Project Manager - HRIS will be a primary figure in leading the day-to-day project planning, execution coordination and tracking, and facilitation of change (both technical and non-technical) across the company for major business system implementation projects new software implementations (Deltek, Procore or simil',
-    "Lead Lab Engineer Description - External At Trane TechnologiesTM and through our businesses including Trane® and Thermo King®, we create innovative climate solutions for buildings, homes, and transportation that challenge what’s possible for a sustainable world. We're a team that dares to look at the world's challenges and see impactful possibiliti",
+    'KINDERGARTEN TEACHER Summary Dedicated educator committed to creating a classroom atmosphere that is stimulating, encouraging and supportive for all students. Skilled ESL Instructor who uses effective and efficient methods of teaching, while focusing on the individual needs of each student. Skills Microsoft Office Academic assessment methods Whole Brain Teaching techniques as classroom management/procedures Certified ESL Instructor Proficiency in differentiated insdtruction Co-teaching experience in kindergarten Experienced with Smart Board Proficient in MS Word, PowerPoint, Excel Experience 09/2013 to Current Kindergarten Teacher Company Name － City , State Implemented Daily 5 Language',
+    '2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing',
+    "DevOps Engineer - Only W2. Position: DevOPs Engineer( Only W2 Required)Location: Houston, TX / Chicago, IL( initially on site later Hybrid)Exprience:5-7 years( NO OPT's) Candidate must Have problem solving mindset and passionate to learn and adapt.Must have Strong Foundation in core DevOPs Principles and Practices. Primary Skills:AWS CloudNO SQL Data BaseCI/CDDisaster RecoveryScalabilityDR Testing",
 ]
 embeddings = model.encode(sentences)
 print(embeddings.shape)
@@ -178,9 +184,9 @@ print(embeddings.shape)
 # Get the similarity scores for the embeddings
 similarities = model.similarity(embeddings, embeddings)
 print(similarities)
-# tensor([[1.0000, 0.6449, 0.4691],
-#         [0.6449, 1.0000, 0.4954],
-#         [0.4691, 0.4954, 1.0000]])
+# tensor([[1.0000, 0.7812, 0.6641],
+#         [0.7812, 1.0000, 0.5090],
+#         [0.6641, 0.5090, 1.0000]])
 ```
 <!--
 ### Direct Usage (Transformers)
@@ -224,20 +230,20 @@ You can finetune this model on your own dataset.
 
 #### Unnamed Dataset
 
-* Size: 180 training samples
+* Size: 300 training samples
 * Columns: <code>sentence1</code>, <code>sentence2</code>, and <code>label</code>
 * Approximate statistics based on the first 100 samples:
-  |          | sentence1                                                                          | sentence2                                                                           | label                                                          |
-  |:---------|:-----------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|:---------------------------------------------------------------|
-  | type     | string                                                                             | string                                                                              | float                                                          |
-  | modality | text                                                                               | text                                                                                |                                                                |
-  | details  | <ul><li>min: 59 tokens</li><li>mean: 79.14 tokens</li><li>max: 99 tokens</li></ul> | <ul><li>min: 64 tokens</li><li>mean: 82.33 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 0.0</li><li>mean: 0.57</li><li>max: 1.0</li></ul> |
+  |          | sentence1                                                                             | sentence2                                                                            | label                                                           |
+  |:---------|:--------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------|:----------------------------------------------------------------|
+  | type     | string                                                                                | string                                                                               | float                                                           |
+  | modality | text                                                                                  | text                                                                                 |                                                                 |
+  | details  | <ul><li>min: 124 tokens</li><li>mean: 127.92 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 22 tokens</li><li>mean: 121.86 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 0.2</li><li>mean: 0.59</li><li>max: 0.95</li></ul> |
 * Samples:
-  | sentence1                                                                                                                                                                                                                                                                                                                                                                   | sentence2                                                                                                                                                                                                                                                                                                                                                                   | label            |
-  |:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------|
-  | <code>ASP.NET WEB DEVELOPER Accomplishments Won Associate of the Month award at CYIENT Member of the team which won the Team of the Month award for projects such as DEBTS and eRFA Experience April 2015 to Current Company Name City , State ASP.Net Web Developer Responsibilities: Migration of IU Print website (print.iu.edu) from ColdFusion to ASP.Net using</code> | <code>Assistant Facility Manager, Valet Operations Overview SP+ is driven by Our Promise, “Making Every Moment Matter for a World on the Go.” Our team understands that time is scarce, so we are intentional about putting ourselves in the shoes of those we serve. The result is a unique combination of talented people and industry-leading technology that ena</code> | <code>1.0</code> |
-  | <code>AS INFORMATION TECHNOLOGY PROJECT MANAGER Summary SUMMARY Skilled IT professional with 7 years of proven success in developing and leading cross-functional technical teams to execute and deliver major technology initiatives using the Agile methodology and Scaled Agile Framework (SAFe). Well-versed in managing projects with co-located and off-site t</code> | <code>Case Developer At Morgan & Morgan, the work we do matters. For millions of Americans, we’re their last line of defense against insurance companies, large corporations or defective goods. From attorneys to client support staff, creative marketing to operations teams, every member of our firm has a key role to play in the winning fight for consumer r</code> | <code>1.0</code> |
-  | <code>DATABASE PROGRAMMER/ANALYST (.NET DEVELOPER) Summary Software Engineer with 2 years in Web Developer specializing in front end development. Proficient in Software Development Life Cycle (SDLC) and SCRUM AGILE methodologies of development process to produce software solutions by team. Involved in designing, planning, developing and implementing Micr</code> | <code>Activities Assistant Position Details Shift: 10 a.m. - 6 p.m. Status: PRN Live the Mission PRN as needed Position Summary The Activities Assistant assists the Director of Activities in planning, organizing, developing, and directing quality activities for patients, ensuring that the recreational, physical, intellectual, spiritual, and social needs </code> | <code>1.0</code> |
+  | sentence1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | sentence2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | label             |
+  |:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------|
+  | <code>ASP.NET WEB DEVELOPER Accomplishments Won Associate of the Month award at CYIENT Member of the team which won the Team of the Month award for projects such as DEBTS and eRFA Experience April 2015 to Current Company Name City , State ASP.Net Web Developer Responsibilities: Migration of IU Print website (print.iu.edu) from ColdFusion to ASP.Net using MVC Framework. Create a prototype dashboard for IU Print Analytics module using High Charts. July 2011 to July 2014 Company Name City , State Software Engineer Responsibilities: Designed and developed an application to migrate</code>                                                                                                                  | <code>Business Intelligence Engineer, AFT Inbound. Description This team is currently seeking a motivated Business Intelligence Engineer to give us the insights we need to run our business. The ideal candidate will have analytics experience, and should be comfortable working across multiple projects / programs. The candidate should be comfortable interfacing with technology systems, and be able to analyze data and gather actionable conclusions. Operating in a rapidly changing environment will require the candidate to be adept at dealing with ambiguous, new and challenging situations. The candidate will have advanced skills</code> | <code>0.95</code> |
+  | <code>AS INFORMATION TECHNOLOGY PROJECT MANAGER Summary SUMMARY Skilled IT professional with 7 years of proven success in developing and leading cross-functional technical teams to execute and deliver major technology initiatives using the Agile methodology and Scaled Agile Framework (SAFe). Well-versed in managing projects with co-located and off-site teams. Expertise in gathering and translating requirements, leading scrum teams, and release management, including owning the release management lifecycle for multiple applications across different environments. Skills Agile methodology Project management SAFe Program Increment (PI) Planning Scrum / Kanban / Scrumban Aptitude for resolving</code> | <code>Android Developer. Akkodis is seeking a Senior Android Developer for a client in Seattle, WA for a 6 month contract with a possible extension. NEED TO BE LOCAL TO : Seattle W2 only , no C2C Pay is $104.70/HR on W2.Work Location: Seattle , Hybrid (Hybrid work: Tues-Thurs in the office. Monday & Friday remote)Work Schedule: Normal PST business hours, Monday - Friday Project Overview: This business empowers Automotive OEMs to make software defined cars, or smart cars, by providing a suite of Maps based products, including GMaps Embedded and</code>                                                                                  | <code>0.95</code> |
+  | <code>DATABASE PROGRAMMER/ANALYST (.NET DEVELOPER) Summary Software Engineer with 2 years in Web Developer specializing in front end development. Proficient in Software Development Life Cycle (SDLC) and SCRUM AGILE methodologies of development process to produce software solutions by team. Involved in designing, planning, developing and implementing Microsoft .Net based solutions that meet quality and code standards. Developed web based applications using C#, ASP.Net, JavaScript, jQuery, CSS, Bootstrap CSS, HTML, XML and AJAX. Strong experience in data retrieval and manipulation using ADO.Net data objects such as Dataset, Data Reader, Data list, Data</code>                                       | <code>Field Engineer - Roadway/ Highway. Your new role We are currently working with a client who is seeking a motivated Field Engineer with experience in roadway and highway projects. As a Field Engineer, you will play a crucial role in the successful execution and delivery of ongoing and upcoming projects. Locations: Tallahassee, Jacksonville, West Palm, Miami, Orlando, or Tampa What you'll need to succeed 1-3+ years of related experience: We’re looking for candidates with a strong background in civil construction and field engineering.Experience in roadway and highway projects: Familiarity with</code>                           | <code>0.95</code> |
 * Loss: [<code>CosineSimilarityLoss</code>](https://sbert.net/docs/package_reference/sentence_transformer/losses.html#cosinesimilarityloss) with these parameters:
   ```json
   {
@@ -251,8 +257,9 @@ You can finetune this model on your own dataset.
 
 - `per_device_train_batch_size`: 16
 - `num_train_epochs`: 2
-- `learning_rate`: 8e-05
-- `warmup_steps`: 3
+- `learning_rate`: 7e-05
+- `warmup_steps`: 5
+- `weight_decay`: 0.01
 
 #### All Hyperparameters
 <details><summary>Click to expand</summary>
@@ -260,13 +267,13 @@ You can finetune this model on your own dataset.
 - `per_device_train_batch_size`: 16
 - `num_train_epochs`: 2
 - `max_steps`: -1
-- `learning_rate`: 8e-05
+- `learning_rate`: 7e-05
 - `lr_scheduler_type`: linear
 - `lr_scheduler_kwargs`: None
-- `warmup_steps`: 3
+- `warmup_steps`: 5
 - `optim`: adamw_torch_fused
 - `optim_args`: None
-- `weight_decay`: 0.0
+- `weight_decay`: 0.01
 - `adam_beta1`: 0.9
 - `adam_beta2`: 0.999
 - `adam_epsilon`: 1e-08
@@ -361,17 +368,8 @@ You can finetune this model on your own dataset.
 
 </details>
 
-### Training Logs
-| Epoch  | Step | Training Loss |
-|:------:|:----:|:-------------:|
-| 0.4167 | 5    | 0.2843        |
-| 0.8333 | 10   | 0.2510        |
-| 1.25   | 15   | 0.2404        |
-| 1.6667 | 20   | 0.2348        |
-
-
 ### Training Time
-- **Training**: 2.3 minutes
+- **Training**: 5.3 minutes
 
 ### Framework Versions
 - Python: 3.14.5
