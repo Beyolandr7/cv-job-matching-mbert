@@ -9,117 +9,127 @@ tags:
 - loss:CosineSimilarityLoss
 base_model: google-bert/bert-base-multilingual-cased
 widget:
-- source_sentence: DIRECTOR OF INFORMATION TECHNOLOGY Summary I am a solutions-oriented
-    professional with solid experience in various IT environments. LEADERSHIP Motivating
-    and managing and a robust team of internal and remote staff members Establishing
-    and maintaining effective partnerships, through collaboration and information
-    technology in support of the organization. Managing the day-to-day responsibilities
-    of a 24x7x 365 IT organization prudently. Managing a large IT environment with
-    ~10,000 SaaS. Assigning clear authority and holding others accountable for goal
-    achievement. Skills COMMUNICATION Collaborating with clients and fostering a positive
-    business relationship to meet all levels
+- source_sentence: LEAD TEACHER Summary Use the knowledge and firsthand experience
+    that I have gained through my various education, work in both civilIan and military
+    experience, extracurricular and leadership positions to become a proactive and
+    dedicated team member. Highlights Apple and Windows programs including Microsoft
+    Office Suite Internet Proficiency Social Media website use for communication with
+    Sigma Kappa and FOCUS members Accomplishments Awarded two Navy and Marine Corps
+    Achievement Medal in 2014 and 2017. Awarded Letter Commendation for winning Junior
+    Sailor, 2016. Formally acknowledged by the Defense Reduction Threat Agency for
+    superb
   sentences:
   - Academic Tutor. part time tutor opening for general education courses, retired
     instructors encouraged to apply
-  - Kitchen and Bath Designer. Company DescriptionTimberline Kitchen & Bath, Inc.
-    is a reputable company that specializes in creating exceptional kitchen and bath
-    designs. With over 40 years of experience,
-  - Tooling Design Engineer. Cullerton Group has a new opportunity for a Tooling Design
-    Engineer in Mossville, IL. The work will be done onsite. This is a long term contract.
-    It can lead to permanent employment with our customer. Compensation is $90,000/yr
-    + benefits (vision, dental,
-- source_sentence: Rachael Lobdell Summary . Compassionate Senior Outreach Advocate
-    with 13 + years of experience working in public and private agencies to upgrade
-    health and dignity within vulnerable populations. Creativeand adaptable leader
-    dedicated to doing whatever necessary to meet client needs, including customizing
-    established programs. Self-motivated and deeply engaged with client and supporter
-    communities. Skills Confidential data protection Data entry Scheduling clients
-    for evaluations for Managed Long Term Care Intake and Submission of Medicaid applications
-    for clients Intake and submission of Pool Trust for Long Term Care clients Excellent
-    Communication skills
+  - 2024-2025 Humanities Teacher - Cox, Clyde ES. Humanities Teacher Primary Location
+    LAS VEGAS-COX, CLYDE ES Work Locations COX, CLYDE ES Job ES Teacher Organization
+    THE TRANSFORMATION NETWORK Job Level Day Job Job Posting Apr 5, 2024, 7:56:12
+    AM Unposting Date Ongoing
+  - Cook II. Company Description "Why work for Accor? We are far more than a worldwide
+    leader. We welcome you as you are and you can find a job and brand that matches
+    your personality. We support you to grow and learn every day, making sure that
+    work brings purpose to your life, so that during your journey with us, you can
+    continue to explore Accor’s limitless possibilities. By joining Accor, every chapter
+    of your story is yours to write and together we can imagine tomorrow's hospitality.
+    Discover the life that
+- source_sentence: 'SCIENCE TEACHER Summary Dedicated Teacher adept at challenging
+    students to reach their full potential. Ensures that every student is progressing
+    and is held to high expectations. Highlights Skills: Computer Proficiency in Microsoft
+    word Excel, and Power point Lesson planning expertise Tutoring experience Standardized
+    testing IEP familiarity Experience 09/2005 to Current Science Teacher Company
+    Name － City , State 7th and 8th Grade Implemented 8th grade curriculum through
+    various methods and techniques that reflect the CCSS Created a learning environment
+    that enabled students to take risks and comfortably express their ideas'
   sentences:
   - Maths Teacher. Maths Teacher required for August 2024, US passport required.Teaching
     qualification required.Salary between $40,000 - $50,000 with potential accommodation
-  - 2024-2025 Math 7-8 Teacher - GUINN MS. Primary Location LAS VEGAS-GUINN, KENNY
-    MS Work Locations GUINN, KENNY MS Job MS Teacher Organization Region Two Job Level
-    Day Job Job Posting Apr 18, 2024, 4:00:40 PM Unposting Date Ongoing Location Title
-    Tier Year 0434-2024-2025-Title I MS-Tier I-Guinn, Kenny C. MS
-  - 'Childcare Teacher. Join a strong community where all we do is care-for the children
+  - FT Experienced Line Cook. RiverWoods in Exeter is currently hiring for experienced
+    Line Cook to join our Dining team! Enjoy working Full Time with benefits without
+    having to work late nights! Typical shifts run between 11:00am and 7:30pm; Flexible
+    Schedule options exist however work would generally be required on at-least one
+    weekend day. Unlike the hustle and bustle of standard restaurants, ours provides
+    more of a set schedule and offers you the ability to make a difference every day.
+    The ideal candidate will understand and perform a variety of culinary
+  - Aerospace Design Engineer. Richardson, TXOrWichita, KS On-Site (no remote or hybrid)
+    Looking for strong and recent experience in air-frame design, fuselage design,
+    nacelle systems designStrong experience in GD&TStrong knowledge of industry standards.Experience
+    in CATIA v5 and aboveExperience with ENOVIA apply at harman@vnconsultancy.org
+- source_sentence: PATIENT SERVICE REPRESENTATIVE Summary Seeking a position using
+    strong organizational skills, superb communication skills and interest in management
+    position with the reputed organization that rewards loyalty, hard work, dependability
+    and positive results in the team environment. Skills Maintains strict confidentiality
+    Knowledge of HMOs, Medicare and Medi-Cal Medical Manager Software Electronic Medical
+    Record (EMR) software HIPAA compliance Patient-focused care Strong work ethic
+    Team player with positive attitude Proven patience and self-discipline Personal
+    and professional integrity Relationship and team building Staff training and development
+    Effectively influences others Critical thinking proficiency Cultural awareness
+  sentences:
+  - Staff Attorney. Advice and representation on civil problems; see vlas.org/careers
+  - 'Registered Nurse - 4470 (Day). Job Description Facility: Critical Illness and
+    Rehab Position: Registered Nurse, Clinic Location: Springfield, MO Shift Details:
+    Day Hours per Week: 36 Shift Hours: - Duration: 1 weeksOn Call: No Benefits Bluebird
+    Features and Benefits : Competitive compensation & stipends Weekly pay Day 1 Health
+    Benefits - Medical , Vision,'
+  - 'Cook I. Pay Rate: $18.00 per hour YOUR NEXT OPPORTUNITY IS NOW BOARDING: Join
+    OTG as a Cook I at John F. Kennedy International Airport now and drive a new type
+    of hospitality. Explore career opportunities in a unique hospitality environment
+    with some of the industry''s best compensation and benefits, including PTO, Healthcare,
+    and a competitive 401k match. WHAT IS OTG? OTG has revolutionized the hospitality
+    industry by pushing the boundaries of excellence. With more than 300 in-terminal
+    dining and retail locations across 10 airports, OTG and its 5,000+ Crewmembers'
+- source_sentence: 'FIELD NURSE Professional Summary California-licensed Vocational
+    Nurse with 25+ years of experience. Maintain strong reputation for achieving high
+    levels of patient satisfaction. Works effectively as a team member and interact
+    in a positive manner with patients, including difficult individuals. Core Qualifications
+    CA License #VN133323 Skill Highlights Patient-centered care Accurately document
+    patient conditions BAC screen/drug screen collection ability Medication administration
+    expert Acute and rehabilitative care Wound cleaning/care expertise Mobility assistance
+    IV drug therapy management Colostomy care familiarity Gastroenteral nutrition
+    education Body mechanics knowledgeMedical clinical Specimen collection/processing
+    proficiency procedures comprehension Experience Field'
+  sentences:
+  - 'Childcare Cook. Join a strong community where all we do is care-for the children
     and families we serve every day, as well as for our dedicated team members. Our
     people are our best asset. We listen and we know what you''re looking for: You
     want benefits. We support you with a minimum 50% childcare discount, immediate
     access to benefits, innovative health programs,'
-- source_sentence: ELECTRONIC HEALTH RECORD OPTIMIZATION SPECIALIST Skill Highlights
-    Analyst skills - Managed care contract analysis, payment analysis and appeal,
-    quality data analysis and Above average computer skills - Microsoft Office Suite,
-    Adobe (full version), Athena Clarity, Crystal Reports, Internet and email proficiency
-    Professional Experience Electronic Health Record Optimization Specialist Company
-    Name － City , State Assist primary care practices and providers to improve quality
-    scores through expertise in practice workflow, electronic health record systems,
-    and quality measures. Assists practices in implementing and using systems (quality
-    reporting, EHR modules) to improve patient
+  - Middle School Teacher. Seeking certified (2) language arts, a social studies,
+    and a music teacher.
+  - Preschool Teacher. Experienced Preschool Teacher at The Learning Experience is
+    an ambassador of happiness, creating opportunities every day that reflect our
+    mission to make a difference in the lives of children, their families, and communities.
+    College students and retired teachers welcome to apply! $18.00-20.00 per hour
+    (rate offered will be based on qualifications and level of experience) Employee
+    Benefits
+- source_sentence: ASSISTANT ACCOUNTANT Summary Accountant/Business Consultant Objectives;
+    Dynamic, creative and proactive Accountant seeking a long-term opportunity within
+    the business community, where my professional, experience, education, and abilities
+    would be advantageous to the growth of my employer and my self. Profile Summary
+    *ACCA Finalist *Qualified Diploma in Accountancy with 10 years Financial Accounting,
+    Public Finance and Financial Management experience Skills Financial Management
+    Financial Performance assessment Financial Planning Accounting Compliance/Auditing/Assurance
+    Cash Management Budgeting Financial Reporting Cash Flow Statements Business consultant/Advisor
+    Business Management Accomplishments High Integrity. Good sense of customer care.
+    Good judgment and
   sentences:
-  - 'RN - Medical/Surgical - Travel. Gross Pay (weekly): $2786.8 Taxable Pay (weekly):
-    1372.8 Non-taxable Pay (weekly): 1414.0 RN - Medical/Surgical - Travel Shift:
-    07:00 PM to 07:00 AM Location: Charlottesville, VA Scheduled Hours : 48'
-  - 'Preschool Cook. Join a strong community where all we do is care-for the children
-    and families we serve every day, as well as for our dedicated team members. Our
-    people are our best asset. We listen and we know what you''re looking for: You
-    want benefits. We support you with a minimum 50% childcare discount, immediate
-    access to benefits, innovative health programs,'
-  - 'ETL Engineer with Ab Initio. Position : ETL Engineer with Ab InitioJob Type:
-    Hybrid Location: Jersey City, New Jersey Nice to haveAWSHadoop and Spark knowledge
-    (we are migrating legacy ETLs to Spark based processing framework)Experience in
-    AWS cloud is preferred.Knowledge of Kafka, Unix, python is desirable'
-- source_sentence: 'NATIONAL ADMINISTRATOR, POPULATION HEALTH AND ASSOCIATE DIRECTOR,
-    VISIT CLINICAL PRACTICE Education Maters Certificate in Lean Six Sigma, Healthcare
-    2015 Villanova University City , State MPH Masters of Public Health, Health Care
-    Administration 2012 West Chester University City , State M.D. : Medicine 2001
-    Saint Petersburg State Medical Academy City , Russia Executive Profile Healthcare
-    executive with 16+ years of progressive experience in acute and post-acute care
-    settings. Experienced in clinical operations, process improvement, quality, population
-    health management, clinical integration, business development and marketing strategy
-    in for-profit, and nonprofit health systems.'
-  sentences:
-  - 'RN Medical/Surgical. Job Description Facility: ALBIR St Vincents Birmingham-50035
-    Position: Registered Nurse, Medical-Surgical Location: Birmingham, AL Shift Details:
-    2 Hours per Week: Shift Hours: 19:00 - 07:30Duration: 13 weeksOn Call: Yes Benefits
-    Bluebird Features and Benefits : Competitive compensation & stipends Weekly pay
-    Day 1 Health Benefits - Medical , Vision,'
-  - 2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN
-    C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three
-    Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing
-  - 'Senior Applications Engineer - Finance. A law firm is looking for a Senior Applications
-    Engineer - Finance to join their team in New York, NY. Compensation: $120-170k
-    The Senior Applications Engineer, Finance acts as IT owner of several applications
-    and platforms owned by the firm#39;s Finance team. These include Elite 3E, Design
-    Gallery, Chrome River, eBillingHub, IntApp Time, Proforma Tracker, Star Collect,
-    integrations, mobili'
-- source_sentence: KINDERGARTEN TEACHER Summary Dedicated educator committed to creating
-    a classroom atmosphere that is stimulating, encouraging and supportive for all
-    students. Skilled ESL Instructor who uses effective and efficient methods of teaching,
-    while focusing on the individual needs of each student. Skills Microsoft Office
-    Academic assessment methods Whole Brain Teaching techniques as classroom management/procedures
-    Certified ESL Instructor Proficiency in differentiated insdtruction Co-teaching
-    experience in kindergarten Experienced with Smart Board Proficient in MS Word,
-    PowerPoint, Excel Experience 09/2013 to Current Kindergarten Teacher Company Name
-    － City , State Implemented Daily 5 Language
-  sentences:
-  - 'Tax & Estate Planning Attorney. Fast-paced, mid-size, 25-year, collaborative
-    law firm is seeking an Associate Attorney to work in a team environment across
-    two departments, as follows: 1. Protecting Promises Department - handle 4 5 RLT
-    consultations a week for families with a net worth up to $10million using our
-    proven process 2. Wealth Strategies Department - provide research and project
-    support for our work with successful families and business owners with a net worth
-    of $20 - $200 million. We are willing to, and enjoy, training. Experience in life,'
-  - 2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN
-    C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three
-    Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing
-  - 'DevOps Engineer - Only W2. Position: DevOPs Engineer( Only W2 Required)Location:
-    Houston, TX / Chicago, IL( initially on site later Hybrid)Exprience:5-7 years(
-    NO OPT''s) Candidate must Have problem solving mindset and passionate to learn
-    and adapt.Must have Strong Foundation in core DevOPs Principles and Practices.
-    Primary Skills:AWS CloudNO SQL Data BaseCI/CDDisaster RecoveryScalabilityDR Testing'
+  - Line Cook. Organization- Grand Hyatt Vail Summary Nestled at the base of Vail
+    Mountain, along the banks of Gore Creek, Grand Hyatt Vail is located in the heart
+    of Vail Valley within the Cascade Village neighborhood. Featuring Vail’s premier
+    open-air chairlift directly next to our spacious ski valet and rental shop, Grand
+    Hyatt Vail offers the most convenient access to Vail Mountain, adventure, and
+    respite. From skiing and snowboarding, seasonally inspired resort activities,
+    and luxurious amenities, Grand Hyatt Vail has something for everyone. Enjoy an
+    array of Colorado inspired dining
+  - Preschool Teacher. Come JOIN US at The Learning Experience West University!! Paid
+    vacation time Paid Holiday401 KChildcare discountsHealth and Dental reimbursementShort
+    term
+  - Special Education Teacher - ES. Earn up to $65,000 per year. Special Education
+    Teacher Are you looking for an opportunity to advance your career while working
+    with an extraordinary team? Take the next step of your career and be a part of
+    the Merakey Family! We are seeking a Special Education Teacher to join our team
+    at our school in Warrington, PA This position requires a current PA Special Education
+    teaching certification or a Licensed Private Academic Certification WHY TEACH
+    AT MERAKEY? Benefits are effective upon date of hire and
 pipeline_tag: sentence-similarity
 library_name: sentence-transformers
 ---
@@ -173,9 +183,9 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer("sentence_transformers_model_id")
 # Run inference
 sentences = [
-    'KINDERGARTEN TEACHER Summary Dedicated educator committed to creating a classroom atmosphere that is stimulating, encouraging and supportive for all students. Skilled ESL Instructor who uses effective and efficient methods of teaching, while focusing on the individual needs of each student. Skills Microsoft Office Academic assessment methods Whole Brain Teaching techniques as classroom management/procedures Certified ESL Instructor Proficiency in differentiated insdtruction Co-teaching experience in kindergarten Experienced with Smart Board Proficient in MS Word, PowerPoint, Excel Experience 09/2013 to Current Kindergarten Teacher Company Name － City , State Implemented Daily 5 Language',
-    '2024-2025 Grade 4 Teacher - TAYLOR ES. Primary Location HENDERSON-TAYLOR, GLEN C. ES Work Locations TAYLOR, GLEN C. ES Job ES Teacher Organization Region Three Job Level Day Job Job Posting Apr 18, 2024, 11:09:44 AM Unposting Date Ongoing',
-    "DevOps Engineer - Only W2. Position: DevOPs Engineer( Only W2 Required)Location: Houston, TX / Chicago, IL( initially on site later Hybrid)Exprience:5-7 years( NO OPT's) Candidate must Have problem solving mindset and passionate to learn and adapt.Must have Strong Foundation in core DevOPs Principles and Practices. Primary Skills:AWS CloudNO SQL Data BaseCI/CDDisaster RecoveryScalabilityDR Testing",
+    'ASSISTANT ACCOUNTANT Summary Accountant/Business Consultant Objectives; Dynamic, creative and proactive Accountant seeking a long-term opportunity within the business community, where my professional, experience, education, and abilities would be advantageous to the growth of my employer and my self. Profile Summary *ACCA Finalist *Qualified Diploma in Accountancy with 10 years Financial Accounting, Public Finance and Financial Management experience Skills Financial Management Financial Performance assessment Financial Planning Accounting Compliance/Auditing/Assurance Cash Management Budgeting Financial Reporting Cash Flow Statements Business consultant/Advisor Business Management Accomplishments High Integrity. Good sense of customer care. Good judgment and',
+    'Preschool Teacher. Come JOIN US at The Learning Experience West University!! Paid vacation time Paid Holiday401 KChildcare discountsHealth and Dental reimbursementShort term',
+    'Special Education Teacher - ES. Earn up to $65,000 per year. Special Education Teacher Are you looking for an opportunity to advance your career while working with an extraordinary team? Take the next step of your career and be a part of the Merakey Family! We are seeking a Special Education Teacher to join our team at our school in Warrington, PA This position requires a current PA Special Education teaching certification or a Licensed Private Academic Certification WHY TEACH AT MERAKEY? Benefits are effective upon date of hire and',
 ]
 embeddings = model.encode(sentences)
 print(embeddings.shape)
@@ -184,9 +194,9 @@ print(embeddings.shape)
 # Get the similarity scores for the embeddings
 similarities = model.similarity(embeddings, embeddings)
 print(similarities)
-# tensor([[1.0000, 0.7812, 0.6641],
-#         [0.7812, 1.0000, 0.5090],
-#         [0.6641, 0.5090, 1.0000]])
+# tensor([[1.0000, 0.3352, 0.4172],
+#         [0.3352, 1.0000, 0.7869],
+#         [0.4172, 0.7869, 1.0000]])
 ```
 <!--
 ### Direct Usage (Transformers)
@@ -237,13 +247,13 @@ You can finetune this model on your own dataset.
   |:---------|:--------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------|:----------------------------------------------------------------|
   | type     | string                                                                                | string                                                                               | float                                                           |
   | modality | text                                                                                  | text                                                                                 |                                                                 |
-  | details  | <ul><li>min: 124 tokens</li><li>mean: 127.92 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 22 tokens</li><li>mean: 121.86 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 0.2</li><li>mean: 0.59</li><li>max: 0.95</li></ul> |
+  | details  | <ul><li>min: 121 tokens</li><li>mean: 127.68 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 24 tokens</li><li>mean: 123.23 tokens</li><li>max: 128 tokens</li></ul> | <ul><li>min: 0.2</li><li>mean: 0.59</li><li>max: 0.95</li></ul> |
 * Samples:
-  | sentence1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | sentence2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | label             |
-  |:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------|
-  | <code>ASP.NET WEB DEVELOPER Accomplishments Won Associate of the Month award at CYIENT Member of the team which won the Team of the Month award for projects such as DEBTS and eRFA Experience April 2015 to Current Company Name City , State ASP.Net Web Developer Responsibilities: Migration of IU Print website (print.iu.edu) from ColdFusion to ASP.Net using MVC Framework. Create a prototype dashboard for IU Print Analytics module using High Charts. July 2011 to July 2014 Company Name City , State Software Engineer Responsibilities: Designed and developed an application to migrate</code>                                                                                                                  | <code>Business Intelligence Engineer, AFT Inbound. Description This team is currently seeking a motivated Business Intelligence Engineer to give us the insights we need to run our business. The ideal candidate will have analytics experience, and should be comfortable working across multiple projects / programs. The candidate should be comfortable interfacing with technology systems, and be able to analyze data and gather actionable conclusions. Operating in a rapidly changing environment will require the candidate to be adept at dealing with ambiguous, new and challenging situations. The candidate will have advanced skills</code> | <code>0.95</code> |
-  | <code>AS INFORMATION TECHNOLOGY PROJECT MANAGER Summary SUMMARY Skilled IT professional with 7 years of proven success in developing and leading cross-functional technical teams to execute and deliver major technology initiatives using the Agile methodology and Scaled Agile Framework (SAFe). Well-versed in managing projects with co-located and off-site teams. Expertise in gathering and translating requirements, leading scrum teams, and release management, including owning the release management lifecycle for multiple applications across different environments. Skills Agile methodology Project management SAFe Program Increment (PI) Planning Scrum / Kanban / Scrumban Aptitude for resolving</code> | <code>Android Developer. Akkodis is seeking a Senior Android Developer for a client in Seattle, WA for a 6 month contract with a possible extension. NEED TO BE LOCAL TO : Seattle W2 only , no C2C Pay is $104.70/HR on W2.Work Location: Seattle , Hybrid (Hybrid work: Tues-Thurs in the office. Monday & Friday remote)Work Schedule: Normal PST business hours, Monday - Friday Project Overview: This business empowers Automotive OEMs to make software defined cars, or smart cars, by providing a suite of Maps based products, including GMaps Embedded and</code>                                                                                  | <code>0.95</code> |
-  | <code>DATABASE PROGRAMMER/ANALYST (.NET DEVELOPER) Summary Software Engineer with 2 years in Web Developer specializing in front end development. Proficient in Software Development Life Cycle (SDLC) and SCRUM AGILE methodologies of development process to produce software solutions by team. Involved in designing, planning, developing and implementing Microsoft .Net based solutions that meet quality and code standards. Developed web based applications using C#, ASP.Net, JavaScript, jQuery, CSS, Bootstrap CSS, HTML, XML and AJAX. Strong experience in data retrieval and manipulation using ADO.Net data objects such as Dataset, Data Reader, Data list, Data</code>                                       | <code>Field Engineer - Roadway/ Highway. Your new role We are currently working with a client who is seeking a motivated Field Engineer with experience in roadway and highway projects. As a Field Engineer, you will play a crucial role in the successful execution and delivery of ongoing and upcoming projects. Locations: Tallahassee, Jacksonville, West Palm, Miami, Orlando, or Tampa What you'll need to succeed 1-3+ years of related experience: We’re looking for candidates with a strong background in civil construction and field engineering.Experience in roadway and highway projects: Familiarity with</code>                           | <code>0.95</code> |
+  | sentence1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | sentence2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | label             |
+  |:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------|
+  | <code>DATABASE PROGRAMMER/ANALYST (.NET DEVELOPER) Summary Software Engineer with 2 years in Web Developer specializing in front end development. Proficient in Software Development Life Cycle (SDLC) and SRUM AGILE methodologies of development process to produce software solutions by team. Involved in designing, planning, developing and implementing Microsoft .Net based solutions that meet quality and code standards using C#, ASP.Net, ASP.Net MVC JavaScript, jQuery, CSS, Bootstrap CSS, HTML, XML and AJAX. Strong experience in data retrieval and manipulation using ADO.Net data objects such as Dataset, Data Reader, Data list, Data Adaptor, Entity</code>                                                                                                                                  | <code>Quality Engineer - 24-00668. LeadStack Inc. is an award-winning, one of the nation's fastest-growing, certified minority-owned (MBE) staffing services provider of contingent workforce. As a recognized industry leader in contingent workforce solutions and Certified as a Great Place to Work, we're proud to partner with some of the most admired Fortune 500 brands in the world. Job Title: Quality Engineer (Web technology)Location: Cincinnati OH Remote Prefer candidates from Duration: 6 months Job Description: This front-end quality engineering role supports the ongoing enhancements, expansion, and maintenance of Client’s in-house Content Management</code>                                                                     | <code>0.95</code> |
+  | <code>INFORMATION TECHNOLOGY MANAGER Summary Successful fifteen years of experience in IT Management and Technical Support. Skilled in installation, configuration, migration and implementation of server platforms. Dedicated IT Manager well-versed in analyzing and mitigating risk and finding cost-effective solutions. Experience in strategic planning, designing and budgeting for new products. Excellent troubleshooting skills in network, servers and software applications. Highlights Leadership and Vision Network InfrastructureHardware and software upgrade planningProject trackingBudgeting and resource management Active Directory, Adobe, Antivirus, Backup Exec, Backup, Budget, business processes, call center, capacity planning, Cisco, computer assembly, Hardware, contracts,</code> | <code>Java FullStack Developer (Fully Remote). About Exequt: Exequt is a trailblazer in business automation solutions, dedicated to enhancing business efficiency across various industries. Join us to innovate, impact, and lead in a dynamic environment. Role Overview: As a Java FullStack Developer, you will be an integral part of our internal product team, focusing on developing and maintaining high-quality software products. Your work will empower our consultants and clients, accelerating project delivery and elevating the quality of our services.Responsibilities:Develop full-stack web applications using Java, Spring Boot, Angular/React, and TypeScript.Implement CI/CD pipelines</code>                                         | <code>0.95</code> |
+  | <code>SUBJECT MATTER EXPERT (INFORMATION TECHNOLOGY ASSISTANT) Qualifications SAP, HP ALM, Network Configuration, Database Management, Document Management, Troubleshooting / Resolution, System Development & Execution, End-user Training, End-user Training, Customer Service, Website Maintenance, Mac, AUTOCAD Relevant Experience Recognized as 1 of top 4 agents, promoted twice for excellent customer service Experience Subject Matter Expert (Information Technology Assistant) September 2013 to Current Company Name － City , State Responsibilities: -SAP Data Validation and Population for Real Estate, Fixed Asset and Plant Maintenance Modules -Assist, Support and coordinate with Missions to create Database/ SAP</code>                                                                      | <code>Business Analyst (Figma /Azure DevOps). Our client, a leading multinational professional services network, and one of the Big Four accounting organizations is hiring a Business Analyst on long-term Contract basis. Minimum five years of hands-on experience using Microsoft Office Suite, UML, flow charting software, Azure DevOps, project management methodologies, and design tools like Figma.Bachelor’s degree in Computer Science or a related discipline from an accredited college/universitySkilled in organizing information based on reviewing meeting notes, specifications, interviewing clients, architects, and developersExperience designing enterprise web applications. Familiarity with Design Patterns, XML, Microsoft</code> | <code>0.95</code> |
 * Loss: [<code>CosineSimilarityLoss</code>](https://sbert.net/docs/package_reference/sentence_transformer/losses.html#cosinesimilarityloss) with these parameters:
   ```json
   {
@@ -369,7 +379,7 @@ You can finetune this model on your own dataset.
 </details>
 
 ### Training Time
-- **Training**: 5.3 minutes
+- **Training**: 5.0 minutes
 
 ### Framework Versions
 - Python: 3.14.5
