@@ -70,3 +70,6 @@ yarn-error.log*
 *.swo
 .DS_Store
 Thumbs.db
+
+# Graphify
+graphify-out/
