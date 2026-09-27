@@ -138,30 +138,31 @@ def main():
     # -------------------------------------------------------------------------
     # 1. GENERATE KATEGORI: FIT (100 Sampel)
     # -------------------------------------------------------------------------
-    print("\n[1/3] Membentuk 100 sampel kategori 'Fit'...")
+    # -------------------------------------------------------------------------
+    # 1. GENERATE KATEGORI: FIT (300 Sampel = 50 per domain)
+    # -------------------------------------------------------------------------
+    print("\n[1/3] Membentuk 300 sampel kategori 'Fit' (50 per domain)...")
     fit_counts_per_dom = {
-        'INFORMATION-TECHNOLOGY': 17,
-        'HEALTHCARE': 17,
-        'ACCOUNTANT': 17,
-        'CHEF': 16,
-        'TEACHER': 16,
-        'ADVOCATE': 17
+        'INFORMATION-TECHNOLOGY': 50,
+        'HEALTHCARE': 50,
+        'ACCOUNTANT': 50,
+        'CHEF': 50,
+        'TEACHER': 50,
+        'ADVOCATE': 50
     }
 
     for dom, target_count in fit_counts_per_dom.items():
         res_pool = verified_resumes_by_domain[dom]
-        res_pool = res_pool[~res_pool.index.isin(used_resume_indices)].copy()
         # Utamakan CV dengan pengalaman kerja memadai (>= 3 tahun)
         res_pool = res_pool.sort_values(by='years_exp', ascending=False)
-        
         job_pool = jobs_by_domain[dom]
         job_pool = job_pool[~job_pool.index.isin(used_job_indices)].copy()
         
-        sampled_res = res_pool.iloc[:target_count]
-        sampled_job = job_pool.sample(n=target_count, random_state=RANDOM_STATE + pair_id)
+        # Sample dengan replacement untuk CV jika jumlah CV domain < target_count, tapi Job selalu unik
+        sampled_res = res_pool.sample(n=target_count, replace=True, random_state=RANDOM_STATE + pair_id)
+        sampled_job = job_pool.sample(n=target_count, replace=False, random_state=RANDOM_STATE + pair_id)
 
         for (_, r_row), (_, j_row) in zip(sampled_res.iterrows(), sampled_job.iterrows()):
-            used_resume_indices.add(r_row.name)
             used_job_indices.add(j_row.name)
             
             job_text = format_job_text(j_row)
@@ -197,27 +198,25 @@ def main():
     print(f"  -> Berhasil membuat {len([r for r in records if r['kategori'] == 'fit'])} sampel 'fit'")
 
     # -------------------------------------------------------------------------
-    # 2. GENERATE KATEGORI: CLOSE FIT (100 Sampel)
+    # 2. GENERATE KATEGORI: CLOSE FIT (300 Sampel)
     # -------------------------------------------------------------------------
-    print("\n[2/3] Membentuk 100 sampel kategori 'Close Fit'...")
+    print("\n[2/3] Membentuk 300 sampel kategori 'Close Fit' (150 Defisit Pengalaman + 150 Adjacent Domain)...")
     
-    # Subtipe A: 50 data (Experience Deficit / Junior in Same Domain)
-    sub_a_counts = {'INFORMATION-TECHNOLOGY': 9, 'HEALTHCARE': 8, 'ACCOUNTANT': 8, 'CHEF': 8, 'TEACHER': 8, 'ADVOCATE': 9}
+    # Subtipe A: 150 data (Experience Deficit / Junior in Same Domain = 25 per domain)
+    sub_a_counts = {'INFORMATION-TECHNOLOGY': 25, 'HEALTHCARE': 25, 'ACCOUNTANT': 25, 'CHEF': 25, 'TEACHER': 25, 'ADVOCATE': 25}
     for dom, target_count in sub_a_counts.items():
         res_pool = verified_resumes_by_domain[dom]
-        res_pool = res_pool[~res_pool.index.isin(used_resume_indices)].copy()
         res_pool = res_pool.sort_values(by='years_exp', ascending=True)
-        sampled_res = res_pool.iloc[:target_count]
+        sampled_res = res_pool.sample(n=target_count, replace=True, random_state=RANDOM_STATE + pair_id)
         
         job_pool = jobs_by_domain[dom]
         job_pool_mid = job_pool[(job_pool['experience_level'].isin(['Mid-Senior level', 'Associate', 'Director'])) & 
                                 (~job_pool.index.isin(used_job_indices))]
         if len(job_pool_mid) < target_count:
             job_pool_mid = job_pool[~job_pool.index.isin(used_job_indices)]
-        sampled_job = job_pool_mid.sample(n=target_count, random_state=RANDOM_STATE + pair_id)
+        sampled_job = job_pool_mid.sample(n=target_count, replace=False, random_state=RANDOM_STATE + pair_id)
 
         for (_, r_row), (_, j_row) in zip(sampled_res.iterrows(), sampled_job.iterrows()):
-            used_resume_indices.add(r_row.name)
             used_job_indices.add(j_row.name)
             
             job_text = format_job_text(j_row)
@@ -249,22 +248,20 @@ def main():
             })
             pair_id += 1
 
-    # Subtipe B: 50 data (Adjacent Domain with High Transferable Skills)
-    sub_b_counts = {'INFORMATION-TECHNOLOGY': 9, 'HEALTHCARE': 8, 'ACCOUNTANT': 8, 'CHEF': 8, 'TEACHER': 8, 'ADVOCATE': 9}
+    # Subtipe B: 150 data (Adjacent Domain with High Transferable Skills = 25 per domain)
+    sub_b_counts = {'INFORMATION-TECHNOLOGY': 25, 'HEALTHCARE': 25, 'ACCOUNTANT': 25, 'CHEF': 25, 'TEACHER': 25, 'ADVOCATE': 25}
     for dom, target_count in sub_b_counts.items():
         res_pool = verified_resumes_by_domain[dom]
-        res_pool = res_pool[~res_pool.index.isin(used_resume_indices)].copy()
-        sampled_res = res_pool.sample(n=target_count, random_state=RANDOM_STATE + pair_id)
+        sampled_res = res_pool.sample(n=target_count, replace=True, random_state=RANDOM_STATE + pair_id)
         
         adjacent_cats = ADJACENT_DOMAINS[dom]
         adj_jobs = df_jobs[(df_jobs['job_title'].str.contains('|'.join(adjacent_cats), case=False, na=False)) &
                            (~df_jobs.index.isin(used_job_indices))]
         if len(adj_jobs) < target_count:
             adj_jobs = df_jobs[~df_jobs.index.isin(used_job_indices)]
-        sampled_job = adj_jobs.sample(n=target_count, random_state=RANDOM_STATE + pair_id)
+        sampled_job = adj_jobs.sample(n=target_count, replace=False, random_state=RANDOM_STATE + pair_id)
 
         for (_, r_row), (_, j_row) in zip(sampled_res.iterrows(), sampled_job.iterrows()):
-            used_resume_indices.add(r_row.name)
             used_job_indices.add(j_row.name)
             
             job_text = format_job_text(j_row)
@@ -298,30 +295,27 @@ def main():
     print(f"  -> Berhasil membuat {len([r for r in records if r['kategori'] == 'close fit'])} sampel 'close fit'")
 
     # -------------------------------------------------------------------------
-    # 3. GENERATE KATEGORI: NOT FIT (100 Sampel)
+    # 3. GENERATE KATEGORI: NOT FIT (300 Sampel = 50 per cross-pair)
     # -------------------------------------------------------------------------
-    print("\n[3/3] Membentuk 100 sampel kategori 'Not Fit'...")
+    print("\n[3/3] Membentuk 300 sampel kategori 'Not Fit' (50 per cross-pair)...")
     cross_pairs = [
-        ('CHEF', 'INFORMATION-TECHNOLOGY', 17),
-        ('ADVOCATE', 'HEALTHCARE', 17),
-        ('TEACHER', 'CHEF', 17),
-        ('INFORMATION-TECHNOLOGY', 'ADVOCATE', 17),
-        ('HEALTHCARE', 'ACCOUNTANT', 16),
-        ('ACCOUNTANT', 'TEACHER', 16)
+        ('CHEF', 'INFORMATION-TECHNOLOGY', 50),
+        ('ADVOCATE', 'HEALTHCARE', 50),
+        ('TEACHER', 'CHEF', 50),
+        ('INFORMATION-TECHNOLOGY', 'ADVOCATE', 50),
+        ('HEALTHCARE', 'ACCOUNTANT', 50),
+        ('ACCOUNTANT', 'TEACHER', 50)
     ]
 
     for cv_dom, job_dom, count in cross_pairs:
         res_pool = verified_resumes_by_domain[cv_dom]
-        res_pool = res_pool[~res_pool.index.isin(used_resume_indices)].copy()
-        if len(res_pool) < count:
-            res_pool = verified_resumes_by_domain[cv_dom].copy()
-        sampled_res = res_pool.sample(n=count, random_state=RANDOM_STATE + pair_id)
+        sampled_res = res_pool.sample(n=count, replace=True, random_state=RANDOM_STATE + pair_id)
 
         job_pool = jobs_by_domain[job_dom]
         job_pool = job_pool[~job_pool.index.isin(used_job_indices)].copy()
         if len(job_pool) < count:
             job_pool = jobs_by_domain[job_dom].copy()
-        sampled_job = job_pool.sample(n=count, random_state=RANDOM_STATE + pair_id)
+        sampled_job = job_pool.sample(n=count, replace=False, random_state=RANDOM_STATE + pair_id)
 
         for (_, r_row), (_, j_row) in zip(sampled_res.iterrows(), sampled_job.iterrows()):
             used_resume_indices.add(r_row.name)
@@ -368,11 +362,22 @@ def main():
     df_clean_3col = df_clean_3col.iloc[shuffle_idx].reset_index(drop=True)
     df_curated = df_curated.iloc[shuffle_idx].reset_index(drop=True)
 
-    out_clean_path = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class.csv')
-    out_curated_path = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class_curated.csv')
+    out_clean_path = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class_900.csv')
+    out_curated_path = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class_900_curated.csv')
 
     df_clean_3col.to_csv(out_clean_path, index=False, encoding='utf-8')
     df_curated.to_csv(out_curated_path, index=False, encoding='utf-8')
+    print(f"Dataset 900 tersimpan di:\n  -> {out_clean_path}\n  -> {out_curated_path}")
+
+    # Coba juga perbarui file default jika tidak sedang dibuka oleh Excel
+    legacy_clean = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class.csv')
+    legacy_curated = os.path.join(base_dir, 'data', 'dataset_cv_job_matching_3class_curated.csv')
+    try:
+        df_clean_3col.to_csv(legacy_clean, index=False, encoding='utf-8')
+        df_curated.to_csv(legacy_curated, index=False, encoding='utf-8')
+        print(f"File default juga berhasil diperbarui di:\n  -> {legacy_clean}")
+    except PermissionError:
+        print("[INFO] File 'dataset_cv_job_matching_3class.csv' sedang dibuka di Excel/program lain. Gunakan 'dataset_cv_job_matching_3class_900.csv'.")
 
     print("\n" + "="*70)
     print("PENYIMPANAN DATASET SELESAI:")
