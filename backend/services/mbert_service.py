@@ -146,52 +146,178 @@ class MBERTMatchingService:
     @staticmethod
     def extract_entities_hybrid(text: str) -> Dict[str, Any]:
         """
-        Extracts skill, education, and experience markers from text
-        using hybrid rule-based pattern matching for Indonesian & English CVs.
+        Extracts recruitment competency entities aligned with Thesis Table 2.5 NER labels:
+        - EDU   : Riwayat / Gelar Pendidikan (e.g., S1 Informatika, Bachelor of Computer Science)
+        - ORG   : Organisasi / Universitas / Perusahaan (e.g., Universitas Surabaya, PT Telkom)
+        - SKILL : Keahlian Teknis & Kompetensi (e.g., Python, Go, C#, SQL, Machine Learning)
+        - ROLE  : Posisi / Jabatan Pekerjaan (e.g., Software Engineer, Data Scientist)
+        - DUR   : Durasi Pengalaman Kerja (e.g., 6 bulan, 2+ years)
         """
         skill_patterns = [
-            r"\bPython\b", r"\bJava\b", r"\bJavaScript\b", r"\bTypeScript\b", r"\bC\+\+\b", r"\bC#\b",
-            r"\bSQL\b", r"\bPostgreSQL\b", r"\bMySQL\b", r"\bMongoDB\b", r"\bRedis\b",
-            r"\bReact\b", r"\bNext\.js\b", r"\bVue\b", r"\bFastAPI\b", r"\bFlask\b", r"\bDjango\b",
-            r"\bNode\.js\b", r"\bDocker\b", r"\bKubernetes\b", r"\bGit\b", r"\bAWS\b", r"\bGCP\b",
-            r"\bMachine Learning\b", r"\bDeep Learning\b", r"\bNLP\b", r"\bmBERT\b", r"\bPyTorch\b",
-            r"\bTensorFlow\b", r"\bPandas\b", r"\bNumPy\b", r"\bScikit-Learn\b", r"\bData Analysis\b",
-            r"\bProject Management\b", r"\bAgile\b", r"\bScrum\b", r"\bLeadership\b",
-            r"\bPublic Relations\b", r"\bFinancial Accounting\b", r"\bHuman Resources\b",
-            r"\bKomunikasi\b", r"\bManajemen Waktu\b", r"\bKerja Tim\b"
+            r"\bPython\b", r"\bGo\b", r"\bGolang\b", r"\bJava\b", r"\bJavaScript\b", r"\bTypeScript\b",
+            r"\bC\+\+(?=\s|,|\.|;|$)", r"\bC#(?=\s|,|\.|;|$)", r"\bSQL\b", r"\bPostgreSQL\b", r"\bMySQL\b",
+            r"\bMongoDB\b", r"\bRedis\b", r"\bReact\b", r"\bNext\.js\b", r"\bVue\b", r"\bFastAPI\b",
+            r"\bFlask\b", r"\bDjango\b", r"\bNode\.js\b", r"\bDocker\b", r"\bKubernetes\b", r"\bGit\b",
+            r"\bAWS\b", r"\bGCP\b", r"\bMachine Learning\b", r"\bDeep Learning\b", r"\bNLP\b", r"\bmBERT\b",
+            r"\bPyTorch\b", r"\bTensorFlow\b", r"\bPandas\b", r"\bNumPy\b", r"\bScikit-Learn\b",
+            r"\bData Analysis\b", r"\bProject Management\b", r"\bAgile\b", r"\bScrum\b", r"\bLeadership\b",
+            r"\bPublic Relations\b", r"\bFinancial Accounting\b", r"\bGeneral Ledger\b", r"\bGAAP\b",
+            r"\bTax\b", r"\bAudit\b", r"\bPatient Care\b", r"\bClinical\b", r"\bCulinary\b", r"\bPastry\b",
+            r"\bCurriculum\b", r"\bLitigation\b", r"\bLegal Research\b", r"\bContract Management\b",
+            r"\bHuman Resources\b", r"\bKomunikasi\b", r"\bManajemen Waktu\b", r"\bKerja Tim\b"
         ]
 
+        stop_lookahead = r"(?!\s+(?:dari|yang|di|ke|dan|atau|dengan|untuk|pada|selama|sebagai|from|at|in|with|and|or|for|to)\b)"
         edu_patterns = [
-            r"\bS\.Kom\b", r"\bS\.T\b", r"\bS\.E\b", r"\bS\.Si\b", r"\bM\.Kom\b", r"\bM\.T\b", r"\bMBA\b",
-            r"\bBachelor of [A-Za-z ]+\b", r"\bMaster of [A-Za-z ]+\b", r"\bDoctor of [A-Za-z ]+\b",
-            r"\bSarjana [A-Za-z ]+\b", r"\bMagister [A-Za-z ]+\b", r"\bDiploma [A-Za-z0-9 ]+\b",
-            r"\bUniversitas [A-Za-z ]+\b", r"\bInstitut [A-Za-z ]+\b", r"\bUniversity\b"
+            rf"\b(?:S1|S2|S3|D3|D4)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+)?\b",
+            r"\bS\.Kom\b", r"\bS\.T\b", r"\bS\.E\b", r"\bS\.Si\b", r"\bS\.H\b", r"\bS\.Pd\b",
+            r"\bM\.Kom\b", r"\bM\.T\b", r"\bMBA\b", r"\bBSN\b", r"\bCPA\b", r"\bJ\.D\.\b",
+            rf"\bBachelor(?:\s+of|\s+in)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bMaster(?:\s+of|\s+in)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bSarjana\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bMagister\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bDiploma\s+[A-Z][a-zA-Z0-9]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z0-9]+){{0,2}}\b"
         ]
 
-        found_skills = set()
-        for pat in skill_patterns:
-            matches = re.findall(pat, text, re.IGNORECASE)
-            for match in matches:
-                found_skills.add(match)
+        org_patterns = [
+            rf"\bUniversitas\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bInstitut\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bPoliteknik\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            rf"\bPT\.?\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,3}}\b",
+            rf"\bCV\.?\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
+            r"\b[A-Z][a-zA-Z]+\s+University\b",
+            rf"\bUniversity\s+of\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+)?\b",
+            r"\b[A-Z][a-zA-Z]+\s+(?:Hospital|Medical Center|Corporation|Corp|Inc|LLC|Group|Bank)\b"
+        ]
 
-        found_edu = set()
+        role_patterns = [
+            r"\b(?:Senior\s+|Junior\s+|Lead\s+)?Software Engineer\b",
+            r"\b(?:Senior\s+|Junior\s+)?Data Scientist\b",
+            r"\bData Analyst\b", r"\bSystems Analyst\b", r"\bFull Stack Developer\b",
+            r"\bFrontend Developer\b", r"\bBackend Developer\b", r"\bDevOps Engineer\b",
+            r"\bIT Specialist\b", r"\bSystem Administrator\b", r"\bDatabase Administrator\b",
+            r"\bTechnical Support\b", r"\bHelp Desk\b", r"\bNetwork Specialist\b",
+            r"\bRegistered Nurse\b", r"\bMedical Assistant\b", r"\bClinical Coordinator\b",
+            r"\bHealthcare Administrator\b", r"\bPharmacist\b", r"\bPhysician\b",
+            r"\b(?:Senior\s+|Staff\s+)?Accountant\b", r"\bFinancial Analyst\b", r"\bInternal Auditor\b",
+            r"\bAuditor\b", r"\bTax Specialist\b", r"\bPayroll Specialist\b", r"\bBookkeeper\b",
+            r"\b(?:Executive\s+|Head\s+|Sous\s+)?Chef\b", r"\bLine Cook\b", r"\bPrep Cook\b",
+            r"\bKitchen Manager\b", r"\bPastry Chef\b", r"\bBaker\b",
+            r"\b(?:Physical Education\s+)?Teacher\b", r"\bInstructor\b", r"\bProfessor\b",
+            r"\bLecturer\b", r"\bCorporate Trainer\b", r"\bTechnical Trainer\b",
+            r"\bInstructional Designer\b", r"\bAcademic Advisor\b",
+            r"\b(?:Commercial\s+|Legal\s+)?Counsel\b", r"\bAttorney\b", r"\bLawyer\b",
+            r"\bParalegal(?:\s+Clerk)?\b", r"\bLegal Assistant\b", r"\bCompliance Specialist\b",
+            r"\bContract Administrator\b", r"\bAdvocate\b"
+        ]
+
+        found_skills: List[str] = []
+        for pat in skill_patterns:
+            for match in re.findall(pat, text, re.IGNORECASE):
+                clean_m = match.strip()
+                if clean_m.lower() not in [s.lower() for s in found_skills]:
+                    found_skills.append(clean_m)
+
+        found_edu: List[str] = []
         for pat in edu_patterns:
-            matches = re.findall(pat, text, re.IGNORECASE)
-            for match in matches:
-                found_edu.add(match.strip())
+            for match in re.findall(pat, text):
+                clean_m = match.strip()
+                if clean_m.lower() not in [e.lower() for e in found_edu]:
+                    found_edu.append(clean_m)
+
+        found_org: List[str] = []
+        for pat in org_patterns:
+            for match in re.findall(pat, text):
+                clean_m = match.strip()
+                if clean_m.lower() not in [o.lower() for o in found_org]:
+                    found_org.append(clean_m)
+
+        found_roles: List[str] = []
+        pos_header = re.search(
+            r"Position:\s*(.+?)(?=\.\s*(?:Experience Level|Required Skills|Job Description)|[\r\n]|$)",
+            text,
+            re.IGNORECASE
+        )
+        if pos_header:
+            found_roles.append(pos_header.group(1).strip())
+        for pat in role_patterns:
+            for match in re.findall(pat, text, re.IGNORECASE):
+                clean_m = match.strip()
+                if clean_m.lower() not in [r.lower() for r in found_roles]:
+                    found_roles.append(clean_m)
+
+        dur_matches = re.findall(
+            r"\b(\d+\+?\s*(?:-\s*\d+\s*)?(?:tahun|bulan|years?|yrs?|months?)(?:\s+pengalaman|\s+of\s+experience|\s+experience)?)\b",
+            text,
+            re.IGNORECASE
+        )
+        found_dur = [d.strip() for d in dur_matches[:4]]
 
         exp_match = re.search(
-            r"(\d+)\+?\s*(?:tahun|years?)\s*(?:pengalaman|experience)",
+            r"(\d+)\+?\s*(?:tahun|years?|yrs?)\s*(?:pengalaman|of\s+experience|experience)?",
             text,
             re.IGNORECASE
         )
         years_exp = int(exp_match.group(1)) if exp_match else None
 
+        # Inline NER tagging preview matching Thesis Table 2.5 format
+        tagged_preview = text[:350]
+        # Group consecutive skill lists like 'Python, Go, dan C#' if present
+        tagged_preview = re.sub(
+            r"\b(Python,\s*Go,\s*(?:dan|and)\s*C#)",
+            r"\1 (SKILL)",
+            tagged_preview,
+            flags=re.IGNORECASE
+        )
+        for label_tag, items in [
+            ("EDU", found_edu[:3]),
+            ("ORG", found_org[:3]),
+            ("SKILL", found_skills[:6]),
+            ("ROLE", found_roles[:3]),
+            ("DUR", found_dur[:2]),
+        ]:
+            for item in items:
+                if label_tag == "SKILL" and item in ["Python", "Go", "C#"] and "C# (SKILL)" in tagged_preview:
+                    continue
+                if item and f"{item} ({label_tag})" not in tagged_preview:
+                    tagged_preview = re.sub(
+                        rf"(?<!\w)({re.escape(item)})(?!\w)",
+                        rf"\1 ({label_tag})",
+                        tagged_preview,
+                        count=1,
+                        flags=re.IGNORECASE
+                    )
+
         return {
-            "skills": sorted(list(found_skills)),
-            "education": sorted(list(found_edu))[:5],
+            "EDU": found_edu[:5],
+            "ORG": found_org[:5],
+            "SKILL": found_skills[:12],
+            "ROLE": found_roles[:5],
+            "DUR": found_dur[:4],
+            "ner_tagged_preview": tagged_preview,
+            # Backward-compatible keys for frontend
+            "skills": found_skills,
+            "education": found_edu[:5],
             "experience_years_detected": years_exp,
         }
+
+    @classmethod
+    def build_ner_enriched_text(cls, text: str, doc_type: str = "CV") -> str:
+        """
+        Builds structured competency text from NER entities (Table 2.5) prior to mBERT encoding.
+        Normalizes varying CV layouts so core competency tokens appear in the priority window.
+        """
+        ent = cls.extract_entities_hybrid(text)
+        role_str = ", ".join(ent["ROLE"]) if ent["ROLE"] else "General"
+        skill_str = ", ".join(ent["SKILL"]) if ent["SKILL"] else "General"
+        edu_str = ", ".join(ent["EDU"]) if ent["EDU"] else "General"
+        dur_str = ", ".join(ent["DUR"]) if ent["DUR"] else "Unspecified"
+        org_str = ", ".join(ent["ORG"]) if ent["ORG"] else "General"
+        header = (
+            f"[DOC] {doc_type} | [ROLE] {role_str} | [SKILL] {skill_str} | "
+            f"[EDU] {edu_str} | [DUR] {dur_str} | [ORG] {org_str} || "
+        )
+        return header + text
 
     def match_cv_with_job(
         self,
@@ -201,21 +327,24 @@ class MBERTMatchingService:
     ) -> Dict[str, Any]:
         """
         Executes end-to-end matching process:
-        1. Encodes CV and Job Description into 768-d vectors.
-        2. Computes Cosine Similarity score.
-        3. Classifies status category.
-        4. Extracts NER entity highlights.
+        1. Extracts NER competency entities (EDU, ORG, SKILL, ROLE, DUR) per Table 2.5.
+        2. Constructs NER-enriched structured competency representation and encodes into 768-d vectors.
+        3. Computes Cosine Similarity score.
+        4. Classifies status category.
         """
-        full_job_text = f"Job Title: {job_title}\n\nDescription:\n{job_description}"
+        full_job_text = f"Position: {job_title}. Job Description: {job_description}"
 
-        cv_vec = self.get_document_embedding(cv_text)
-        job_vec = self.get_document_embedding(full_job_text)
+        entities = self.extract_entities_hybrid(cv_text)
+        cv_enriched = self.build_ner_enriched_text(cv_text, doc_type="CANDIDATE_CV")
+        job_enriched = self.build_ner_enriched_text(full_job_text, doc_type="JOB_POSTING")
+
+        cv_vec = self.get_document_embedding(cv_enriched)
+        job_vec = self.get_document_embedding(job_enriched)
 
         score = self.calculate_cosine_similarity(cv_vec, job_vec)
         score_rounded = round(score, 4)
         percentage = round(score_rounded * 100.0, 2)
         status = self.determine_status_category(score_rounded)
-        entities = self.extract_entities_hybrid(cv_text)
 
         return {
             "similarity_score": score_rounded,

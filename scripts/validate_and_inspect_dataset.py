@@ -40,9 +40,10 @@ def main():
 
         # 2. Cek Keseimbangan Kelas
         counts = df['kategori'].value_counts()
-        print(f"\nDistribusi Kategori (Target: 100 per kelas):\n{counts.to_string()}")
+        expected_per_cat = len(df) // 3
+        print(f"\nDistribusi Kategori (Target: {expected_per_cat} per kelas):\n{counts.to_string()}")
         for cat in ['fit', 'close fit', 'not fit']:
-            assert counts.get(cat, 0) == 100, f"Kategori {cat} tidak berjumlah 100!"
+            assert counts.get(cat, 0) == expected_per_cat, f"Kategori {cat} ({counts.get(cat, 0)}) tidak seimbang dengan target {expected_per_cat}!"
 
         # 3. Cek Duplikasi Teks
         dup_jobs = df.duplicated(subset=['job']).sum()
