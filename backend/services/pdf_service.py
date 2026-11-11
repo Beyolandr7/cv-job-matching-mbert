@@ -31,6 +31,23 @@ class PDFService:
         # 3. Strip URLs
         cleaned = re.sub(r"https?://\S+|www\.\S+", " ", cleaned)
 
+        # 3b. Strip common PDF UTF-8/CP1252 mojibake sequences (e.g., in Kaggle PDFs like 19149865.pdf)
+        mojibake_replacements = {
+            "â€‹": " ",
+            "â€“": "-",
+            "â€”": "-",
+            "â€™": "'",
+            "â€˜": "'",
+            "â€œ": '"',
+            "â€\x9d": '"',
+            "â€¢": " ",
+            "ï¼": " ",
+            "Â": " ",
+        }
+        for bad_seq, repl in mojibake_replacements.items():
+            cleaned = cleaned.replace(bad_seq, repl)
+        cleaned = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\u00C0-\u017F]", " ", cleaned)
+
         # 4. Normalize escape characters and invisible unicode characters
         cleaned = re.sub(r"[\r\n\t\xa0\u200b\u200c\u200d\u200e\u200f\ufeff\u3000]", " ", cleaned)
 

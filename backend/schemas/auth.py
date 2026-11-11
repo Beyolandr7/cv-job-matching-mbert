@@ -1,28 +1,20 @@
-import uuid
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
-
-
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: Optional[str] = None
-
-
-class UserCreate(UserBase):
-    password: str
+from pydantic import BaseModel
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
 
 
-class UserResponse(UserBase):
-    id: uuid.UUID
-
-    class Config:
-        from_attributes = True
+class UserResponse(BaseModel):
+    id: str = "admin-001"
+    username: str = "admin"
+    email: str = "admin@skripsi.local"
+    full_name: str = "Administrator (Validator Ahli)"
+    role: str = "admin"
 
 
 class Token(BaseModel):

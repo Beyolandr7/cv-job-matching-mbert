@@ -1,54 +1,61 @@
-from typing import Generator, Optional
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
 
 from core.config import settings
-from db.session import get_db
-from models.user import User
-from schemas.auth import TokenPayload
+from schemas.auth import TokenPayload, UserResponse
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/login",
-    auto_error=False
+    tokenUrl=f"{settings.API_V1_STR}/auth/token",
+    auto_error=False,
 )
 
 
+def _build_admin_user() -> UserResponse:
+    return UserResponse(
+        id="admin-001",
+        username=settings.ADMIN_USERNAME,
+        email=f"{settings.ADMIN_USERNAME}@skripsi.local",
+        full_name="Administrator (Validator)",
+        role="admin",
+    )
+
+
 def get_current_user_optional(
-    db: Session = Depends(get_db),
-    token: Optional[str] = Depends(oauth2_scheme)
-) -> Optional[User]:
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> Optional[UserResponse]:
     """
-    Returns the authenticated User if a valid JWT is provided,
-    otherwise returns None without throwing 401.
+    Returns the authenticated Admin UserResponse if a valid JWT is provided,
+    otherwise returns None without throwing 401 (User Biasa).
     """
     if not token:
         return None
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
+        if token_data.sub == settings.ADMIN_USERNAME or token_data.sub == "admin-001":
+            return _build_admin_user()
     except (JWTError, Exception):
         return None
-
-    user = db.query(User).filter(User.id == token_data.sub).first()
-    return user
+    return None
 
 
 def get_current_user(
-    db: Session = Depends(get_db),
-    token: str = Depends(OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login"))
-) -> User:
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> UserResponse:
     """
-    Strictly validates the JWT token and returns the authenticated User.
-    Throws 401 Unauthorized if invalid or expired.
+    Strictly validates the JWT token and returns the authenticated Admin UserResponse.
+    Throws 401 Unauthorized if invalid or missing.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token autentikasi tidak valid atau sudah kedaluwarsa.",
+        detail="Sesi Admin tidak valid atau sudah berakhir. Silakan login kembali.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
@@ -57,7 +64,7 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == token_data.sub).first()
-    if user is None:
+    if token_data.sub not in (settings.ADMIN_USERNAME, "admin-001"):
         raise credentials_exception
-    return user
+
+    return _build_admin_user()
