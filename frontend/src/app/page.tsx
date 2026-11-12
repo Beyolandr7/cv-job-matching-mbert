@@ -23,6 +23,22 @@ interface ExtractedEntities {
   job_detected_domain?: string;
   raw_cosine_similarity?: number;
   fine_tuned_model_loaded?: boolean;
+  job_entities?: {
+    EDU?: string[];
+    ORG?: string[];
+    SKILL?: string[];
+    ROLE?: string[];
+    DUR?: string[];
+    ner_tagged_preview?: string;
+    experience_years_detected?: number | null;
+  };
+  matched_entities?: {
+    EDU?: string[];
+    ORG?: string[];
+    SKILL?: string[];
+    ROLE?: string[];
+    DUR?: string[];
+  };
 }
 
 interface AnalysisResult {
@@ -910,73 +926,212 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* NER ENTITIES TABLE 2.5 SKRIPSI */}
+                {/* NER ENTITIES TABLE 2.5 SKRIPSI: SYMMETRICAL CV vs JOB DESCRIPTION + MATCH HIGHLIGHTS */}
                 <div>
-                  <h3 style={{ fontSize: "0.92rem", fontWeight: 700, marginBottom: "0.6rem" }}>
-                    Deteksi Entitas Kompetensi NER mBERT (Tabel 2.5 Skripsi)
+                  <h3 style={{ fontSize: "0.94rem", fontWeight: 700, marginBottom: "0.55rem" }}>
+                    Deteksi Entitas Kompetensi NER mBERT: CV Pelamar vs Job Description (Tabel 2.5 Skripsi)
                   </h3>
-                  <div style={{ display: "grid", gap: "0.55rem", fontSize: "0.84rem" }}>
-                    <div>
-                      <strong>ROLE (Jabatan): </strong>
-                      {result.extracted_entities.ROLE?.length ? (
-                        result.extracted_entities.ROLE.map((item, i) => (
-                          <span key={i} className="entity-chip">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>EDU (Pendidikan): </strong>
-                      {result.extracted_entities.EDU?.length ? (
-                        result.extracted_entities.EDU.map((item, i) => (
-                          <span key={i} className="entity-chip">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>ORG (Organisasi / Institusi): </strong>
-                      {result.extracted_entities.ORG?.length ? (
-                        result.extracted_entities.ORG.map((item, i) => (
-                          <span key={i} className="entity-chip">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>DUR (Durasi Pengalaman): </strong>
-                      {result.extracted_entities.DUR?.length ? (
-                        result.extracted_entities.DUR.map((item, i) => (
-                          <span key={i} className="entity-chip">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>SKILL (Keahlian Kompetensi): </strong>
-                      {result.extracted_entities.SKILL?.length ? (
-                        result.extracted_entities.SKILL.map((item, i) => (
-                          <span key={i} className="entity-chip">
-                            {item}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
-                      )}
-                    </div>
-                  </div>
+
+                  {(() => {
+                    const matchedMap = result.extracted_entities.matched_entities || {};
+                    const allMatchedItems = [
+                      ...(matchedMap.ROLE || []).map((x) => ({ tag: "ROLE", val: x })),
+                      ...(matchedMap.EDU || []).map((x) => ({ tag: "EDU", val: x })),
+                      ...(matchedMap.SKILL || []).map((x) => ({ tag: "SKILL", val: x })),
+                      ...(matchedMap.DUR || []).map((x) => ({ tag: "DUR", val: x })),
+                      ...(matchedMap.ORG || []).map((x) => ({ tag: "ORG", val: x })),
+                    ];
+
+                    const isEntityMatched = (tag: "ROLE" | "EDU" | "ORG" | "DUR" | "SKILL", item: string) => {
+                      const mList = matchedMap[tag] || [];
+                      const itemLow = item.toLowerCase();
+                      return mList.some(
+                        (m) =>
+                          m.toLowerCase() === itemLow ||
+                          m.toLowerCase().includes(itemLow) ||
+                          itemLow.includes(m.toLowerCase())
+                      );
+                    };
+
+                    const nerRows: Array<{ key: "ROLE" | "EDU" | "ORG" | "DUR" | "SKILL"; label: string }> = [
+                      { key: "ROLE", label: "ROLE (Jabatan)" },
+                      { key: "EDU", label: "EDU (Pendidikan)" },
+                      { key: "ORG", label: "ORG (Institusi)" },
+                      { key: "DUR", label: "DUR (Durasi)" },
+                      { key: "SKILL", label: "SKILL (Keahlian)" },
+                    ];
+
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        {/* MATCHED ENTITIES SUMMARY BANNER */}
+                        <div
+                          style={{
+                            padding: "0.65rem 0.85rem",
+                            borderRadius: "8px",
+                            background: allMatchedItems.length > 0 ? "#f0fdf4" : "#f8fafc",
+                            border: allMatchedItems.length > 0 ? "1px solid #86efac" : "1px solid var(--border)",
+                            fontSize: "0.82rem",
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, color: allMatchedItems.length > 0 ? "#166534" : "var(--text-secondary)", marginBottom: "0.3rem" }}>
+                            &#10003; Entitas Kompetensi yang Cocok (CV &harr; Job Description): {allMatchedItems.length} Entitas
+                          </div>
+                          {allMatchedItems.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                              {allMatchedItems.map((m, idx) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.25rem",
+                                    padding: "0.18rem 0.55rem",
+                                    borderRadius: "6px",
+                                    fontSize: "0.76rem",
+                                    fontWeight: 700,
+                                    background: "#dcfce7",
+                                    color: "#15803d",
+                                    border: "1px solid #86efac",
+                                  }}
+                                >
+                                  &#10003; [{m.tag}] {m.val}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                              Tidak ditemukan irisan entitas langsung antara CV dan Job Description.
+                            </span>
+                          )}
+                        </div>
+
+                        {/* SIDE-BY-SIDE 2-COLUMN COMPARISON: CV NER vs JOB NER */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          {/* LEFT: CV ENTITIES */}
+                          <div
+                            style={{
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                              padding: "0.75rem",
+                              background: "var(--bg-muted)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "0.8rem",
+                                fontWeight: 700,
+                                color: "var(--primary)",
+                                marginBottom: "0.55rem",
+                                paddingBottom: "0.35rem",
+                                borderBottom: "1px solid var(--border)",
+                              }}
+                            >
+                              A. Entitas NER pada CV Pelamar
+                            </div>
+                            <div style={{ display: "grid", gap: "0.48rem", fontSize: "0.81rem" }}>
+                              {nerRows.map(({ key, label }) => {
+                                const items = result.extracted_entities[key] || [];
+                                return (
+                                  <div key={key}>
+                                    <strong>{label}: </strong>
+                                    {items.length ? (
+                                      items.map((item, i) => {
+                                        const matched = isEntityMatched(key, item);
+                                        return (
+                                          <span
+                                            key={i}
+                                            className="entity-chip"
+                                            style={
+                                              matched
+                                                ? {
+                                                    background: "#dcfce7",
+                                                    borderColor: "#86efac",
+                                                    color: "#15803d",
+                                                    fontWeight: 700,
+                                                  }
+                                                : undefined
+                                            }
+                                          >
+                                            {matched ? `✓ ${item}` : item}
+                                          </span>
+                                        );
+                                      })
+                                    ) : (
+                                      <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* RIGHT: JOB DESCRIPTION ENTITIES */}
+                          <div
+                            style={{
+                              border: "1px solid var(--border)",
+                              borderRadius: "8px",
+                              padding: "0.75rem",
+                              background: "var(--bg-muted)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "0.8rem",
+                                fontWeight: 700,
+                                color: "#0f766e",
+                                marginBottom: "0.55rem",
+                                paddingBottom: "0.35rem",
+                                borderBottom: "1px solid var(--border)",
+                              }}
+                            >
+                              B. Entitas NER pada Job Description
+                            </div>
+                            <div style={{ display: "grid", gap: "0.48rem", fontSize: "0.81rem" }}>
+                              {nerRows.map(({ key, label }) => {
+                                const items = result.extracted_entities.job_entities?.[key] || [];
+                                return (
+                                  <div key={key}>
+                                    <strong>{label}: </strong>
+                                    {items.length ? (
+                                      items.map((item, i) => {
+                                        const matched = isEntityMatched(key, item);
+                                        return (
+                                          <span
+                                            key={i}
+                                            className="entity-chip"
+                                            style={
+                                              matched
+                                                ? {
+                                                    background: "#dcfce7",
+                                                    borderColor: "#86efac",
+                                                    color: "#15803d",
+                                                    fontWeight: 700,
+                                                  }
+                                                : undefined
+                                            }
+                                          >
+                                            {matched ? `✓ ${item}` : item}
+                                          </span>
+                                        );
+                                      })
+                                    ) : (
+                                      <span style={{ color: "var(--text-muted)" }}>Tidak terdeteksi</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}

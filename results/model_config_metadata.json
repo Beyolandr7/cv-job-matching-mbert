@@ -1,0 +1,20 @@
+{
+  "model_name": "bert-base-multilingual-cased",
+  "best_params_m2_cosine": {
+    "learning_rate": 2e-05,
+    "max_length": 128,
+    "dropout": 0.1,
+    "weight_decay": 0.01
+  },
+  "best_params_m1_saja": {
+    "learning_rate": 0.001,
+    "max_length": 128,
+    "dropout": 0.2,
+    "weight_decay": 0.01
+  },
+  "threshold_close_fit_pct": 60.0,
+  "threshold_fit_pct": 80.0,
+  "macro_f1_m2_cosine_pct": 99.11,
+  "macro_f1_m1_saja_pct": 71.37,
+  "macro_f1_m3_tfidf_pct": 16.67
+}

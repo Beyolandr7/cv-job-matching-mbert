@@ -46,8 +46,8 @@ class Settings(BaseSettings):
             "best_siamese_mbert_cosine.pt",
         ),
     )
-    MAX_SEQ_LENGTH: int = 256
-    CHUNK_STRIDE: int = 128
+    MAX_SEQ_LENGTH: int = 128  # Matches Optuna Model 2 best max_length (best_siamese_mbert_cosine.pt)
+    CHUNK_STRIDE: int = 64
 
     # Decision Thresholds (Referenced from Khatri et al., 2025 & Thesis Proposal)
     THRESHOLD_FIT: float = 0.80

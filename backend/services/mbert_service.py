@@ -16,27 +16,67 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 
+NER_TAGS: List[str] = [
+    "O",
+    "B-EDU", "I-EDU",
+    "B-ORG", "I-ORG",
+    "B-SKILL", "I-SKILL",
+    "B-ROLE", "I-ROLE",
+    "B-DUR", "I-DUR",
+]
+TAG2ID: Dict[str, int] = {t: i for i, t in enumerate(NER_TAGS)}
+ID2TAG: Dict[int, str] = {i: t for i, t in enumerate(NER_TAGS)}
+
+
 class SiameseMBERTCosineExtractor(nn.Module):
     """
-    Fine-tuned Dual-Encoder (Siamese) mBERT Feature Extractor (Model 2 - Thesis Bab 3 & 4).
-    Extracts 768-dimensional L2-normalized semantic competency embeddings using
-    hybrid CLS + Attention-Mask Mean Pooling and a learned linear projection head.
+    Unified Deep Learning NER & Siamese mBERT Feature Extractor (Model 2 - Thesis Bab 2.4, 3 & 4).
+    - Branch 1 (`self.ner_head`): Token-level classifier (768 -> 11 BIO tags) predicting
+      `EDU`, `ORG`, `SKILL`, `ROLE`, `DUR` on both CV and Job Description tokens.
+    - Branch 2 (`self.projection`): NER-Guided Entity-Weighted Pooling + Linear Projection (768 -> 768)
+      + L2 Normalization producing 768-d semantic competency vectors (u, v) for Scikit-Learn Cosine Similarity.
     """
 
-    def __init__(self, model_name: str = "bert-base-multilingual-cased", dropout: float = 0.1) -> None:
+    def __init__(
+        self,
+        model_name: str = "bert-base-multilingual-cased",
+        dropout: float = 0.1,
+        num_ner_labels: int = 11,
+    ) -> None:
         super().__init__()
         self.mbert = AutoModel.from_pretrained(model_name)
         self.dropout = nn.Dropout(dropout)
+        self.ner_head = nn.Linear(768, num_ner_labels)
         self.projection = nn.Linear(768, 768)
+        self.use_ner_pooling: bool = False
 
-    def encode_text(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+    def encode_with_ner(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         outputs = self.mbert(input_ids=input_ids, attention_mask=attention_mask)
-        cls_emb = outputs.last_hidden_state[:, 0, :]
-        mask = attention_mask.unsqueeze(-1).expand(outputs.last_hidden_state.size()).float()
-        mean_emb = torch.sum(outputs.last_hidden_state * mask, dim=1) / torch.clamp(mask.sum(dim=1), min=1e-9)
+        token_embs = outputs.last_hidden_state  # [B, L, 768]
+        ner_logits = self.ner_head(self.dropout(token_embs))  # [B, L, 11]
+
+        cls_emb = token_embs[:, 0, :]
+        mask_f = attention_mask.float()
+
+        if self.use_ner_pooling:
+            ner_probs = torch.softmax(ner_logits, dim=-1)
+            entity_prob = 1.0 - ner_probs[:, :, 0]  # Probability token is a competency entity (not 'O')
+            weights = (1.0 + 0.5 * entity_prob.detach()) * mask_f
+        else:
+            weights = mask_f
+
+        weights_exp = weights.unsqueeze(-1).expand(token_embs.size())
+        mean_emb = torch.sum(token_embs * weights_exp, dim=1) / torch.clamp(weights_exp.sum(dim=1), min=1e-9)
         pooled = 0.5 * cls_emb + 0.5 * mean_emb
         projected = self.projection(self.dropout(pooled))
-        return F.normalize(projected, p=2, dim=1)
+        vec_768 = F.normalize(projected, p=2, dim=1)
+        return vec_768, ner_logits
+
+    def encode_text(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        vec_768, _ = self.encode_with_ner(input_ids, attention_mask)
+        return vec_768
 
     def forward(
         self,
@@ -120,57 +160,32 @@ class MBERTMatchingService:
         ],
     }
 
-    # Sub-domain specialization buckets within macro domains to distinguish Core Fit vs Cognate Close Fit
-    SUBDOMAIN_BUCKETS: Dict[str, List[str]] = {
-        "BANKING_OPS_MANAGEMENT": [
-            "banking", "default management", "operations manager", "operations supervisor",
-            "customer service manager", "call center", "branch operations", "cash deposits",
-            "account resolution", "ticketing operations", "retail banking", "consumer banking",
-            "staffing", "scheduling", "process improvement", "team leadership",
-        ],
-        "ACCOUNTING_AUDIT_TAX": [
-            "accountant", "staff accountant", "senior accountant", "general ledger", "gaap",
-            "internal auditor", "external auditor", "tax specialist", "cpa", "journal entries",
-            "financial statements", "balance sheet", "bookkeeper", "tax return",
-        ],
-        "CORPORATE_FINANCE_ANALYST": [
-            "financial analyst", "credit analyst", "budget analyst", "treasury analyst",
-            "financial modeling", "forecasting", "variance analysis", "valuation", "investment",
-        ],
-        "SOFTWARE_DATA_ENGINEERING": [
-            "software engineer", "full stack developer", "backend developer", "frontend developer",
-            "data scientist", "machine learning engineer", "python", "react", "fastapi", "golang",
-        ],
-        "IT_SUPPORT_INFRASTRUCTURE": [
-            "it support", "technical support", "help desk", "system administrator",
-            "network administrator", "network specialist", "database administrator", "hardware",
-        ],
-        "CLINICAL_NURSING": [
-            "registered nurse", "icu nurse", "clinical nurse", "patient care", "bsn", "triage",
-            "medication administration", "bedside care",
-        ],
-        "HEALTHCARE_ADMIN_SUPPORT": [
-            "medical assistant", "healthcare administrator", "clinical coordinator",
-            "medical billing", "health records", "patient scheduling", "clinic manager",
-        ],
-        "CULINARY_CHEF": [
-            "executive chef", "head chef", "sous chef", "kitchen manager", "menu engineering",
-        ],
-        "PASTRY_PREP_COOK": [
-            "pastry chef", "baker", "line cook", "prep cook", "banquet cook",
-        ],
-        "CLASSROOM_TEACHER": [
-            "teacher", "professor", "lecturer", "classroom management", "k-12", "guru", "dosen",
-        ],
-        "TRAINING_INSTRUCTIONAL_DESIGN": [
-            "corporate trainer", "technical trainer", "instructional designer", "academic advisor",
-        ],
-        "LITIGATION_ATTORNEY": [
-            "attorney", "lawyer", "legal counsel", "commercial counsel", "advocate", "litigation",
-        ],
-        "PARALEGAL_COMPLIANCE": [
-            "paralegal", "legal assistant", "compliance specialist", "contract administrator",
-        ],
+    # Exact Notebook 03 patterns for [DOMAIN] and [TIER] header consistency with best_siamese_mbert_cosine.pt
+    CV_HEADER_PATTERNS: Dict[str, str] = {
+        "INFORMATION-TECHNOLOGY": r"\b(?:INFORMATION TECHNOLOGY|IT\b|SOFTWARE|SYSTEMS?|NETWORK|DEVELOPER|TECHNOLOGY|DATA SCIENTIST|BACKEND|FRONTEND|DEVOPS)",
+        "HEALTHCARE": r"\b(?:HEALTHCARE|HEALTH CARE|CLINICAL|MEDICAL|NURSE|NURSING|PATIENT|PHARMACY|THERAPIST|HOSPITAL|PHYSICIAN)",
+        "ACCOUNTANT": r"\b(?:ACCOUNTANT|ACCOUNTING|CPA|AUDITOR|FINANCE|TAX|BOOKKEEPER|PAYROLL)",
+        "CHEF": r"\b(?:CHEF|CULINARY|COOK|PASTRY|BAKER|KITCHEN|FOOD|CATERING)",
+        "TEACHER": r"\b(?:TEACHER|TEACHING|EDUCATOR|INSTRUCTOR|FACULTY|PROFESSOR|TUTOR)",
+        "ADVOCATE": r"\b(?:ADVOCATE|ATTORNEY|LEGAL|LAWYER|COUNSEL|PARALEGAL|COURT|CASE MANAGER)",
+    }
+
+    CORE_ROLE_PATTERNS: Dict[str, str] = {
+        "INFORMATION-TECHNOLOGY": r"\b(?:Senior\s+|Junior\s+|Lead\s+)?(?:Software Engineer|Software Developer|Full Stack(?:\s+Developer)?|DevOps(?:\s+Engineer)?|System Administrator|Frontend(?:\s+Developer)?|Backend(?:\s+Developer)?|Data Scientist|Programmer|Solutions Architect|Provisioning Engineer|Information Technology(?:\s+Manager|\s+Director|\s+Specialist)?)\b",
+        "HEALTHCARE": r"\b(?:Registered Nurse|Nurse Practitioner|Physician|Doctor|Pharmacist|Physical Therapist|Occupational Therapist|Clinical Nurse|RN|Licensed Practical Nurse|Nursing Assistant)\b",
+        "ACCOUNTANT": r"\b(?:Senior\s+|Staff\s+|Tax\s+|Financial\s+|Cost\s+)?(?:Accountant|CPA|Bookkeeper|Accounting Manager|Senior Accounting Manager|Tax Professional|Consumer Banking(?:\s+Default Management)?\s+Supervisor|Operations Manager|Banking Operations Manager)\b",
+        "CHEF": r"\b(?:Executive\s+|Head\s+|Sous\s+|Executive\s+Sous\s+|Banquet\s+|Pastry\s+)?(?:Chef|Chef de Cuisine|Culinary|Kitchen Associate)\b",
+        "TEACHER": r"\b(?:Physical Education\s+|Classroom\s+|Special Education\s+|Assistant\s+|Preschool\s+|Substitute\s+)?(?:Teacher|Professor|Educator|Faculty|Lecturer|CDL Instructor)\b",
+        "ADVOCATE": r"\b(?:Sr\.\s+|Senior\s+|Commercial\s+|General\s+|Legal\s+|Associate\s+|Litigation\s+|Trial\s+)?(?:Attorney|Lawyer|Litigation Associate|Litigation|Counsel|Probate Paralegal|Advocate)\b",
+    }
+
+    COGNATE_ROLE_PATTERNS: Dict[str, str] = {
+        "INFORMATION-TECHNOLOGY": r"\b(?:Data Analyst|Help Desk|Technical Support|Systems Analyst|Technical Writer|QA|Quality Assurance|Database Administrator|Network Specialist|Network Administrator|IT Coordinator|Business Analyst)\b",
+        "HEALTHCARE": r"\b(?:Medical Assistant|Clinical Coordinator|Healthcare Administrator|Health Care Coordinator|Case Manager|Medical Records|Patient Access(?:\s+Representative)?|Health Coach|Pharmacy Technician|Dental Assistant)\b",
+        "ACCOUNTANT": r"\b(?:Financial Analyst|Senior Financial Analyst|Internal Auditor|Auditor|Accounts Payable(?:\s+Specialist)?|Accounts Receivable(?:\s+Specialist)?|Payroll Specialist|Billing Specialist|Credit Analyst|Tax Advisor)\b",
+        "CHEF": r"\b(?:Line Cook|Prep Cook|Kitchen Manager|Food Service|Baker|Dietary Aide|Catering|Barista|Restaurant Manager)\b",
+        "TEACHER": r"\b(?:Corporate Trainer|Technical Trainer|Instructional Designer|Curriculum|Education Coordinator|Academic Advisor|Tutor|Training Specialist|Learning Specialist)\b",
+        "ADVOCATE": r"\b(?:Compliance Specialist|Contract Administrator|Legal Assistant|Paralegal|Regulatory Affairs|Risk Analyst|Contract Specialist|Contracts Manager)\b",
     }
 
     def __init__(self) -> None:
@@ -198,21 +213,163 @@ class MBERTMatchingService:
             if self.fine_tuned_path and os.path.exists(self.fine_tuned_path):
                 logger.info("Loading fine-tuned Siamese mBERT weights from '%s'...", self.fine_tuned_path)
                 state_dict = torch.load(self.fine_tuned_path, map_location=self.device, weights_only=True)
-                self.model.load_state_dict(state_dict, strict=True)
+                has_ner_head = "ner_head.weight" in state_dict
+                self.model.load_state_dict(state_dict, strict=False)
+                self.model.use_ner_pooling = has_ner_head
                 self._is_fine_tuned = True
-                logger.info("Fine-tuned Siamese mBERT Cosine weights loaded successfully.")
+                logger.info(
+                    "Fine-tuned Siamese mBERT Cosine weights loaded (Unified NER head in checkpoint: %s).",
+                    has_ner_head,
+                )
             else:
+                has_ner_head = False
                 logger.warning(
                     "Fine-tuned checkpoint not found at '%s'. Running with base pre-trained weights.",
                     self.fine_tuned_path,
                 )
 
             self.model.to(self.device)
+            if not has_ner_head:
+                self._warm_train_ner_head()
             self.model.eval()
             self._is_loaded = True
         except Exception as exc:
             logger.error("Failed to load mBERT model: %s", exc)
             raise exc
+
+    def _warm_train_ner_head(self) -> None:
+        """
+        Warm-trains `self.model.ner_head` on the bilingual BIO corpus (Table 2.5 + 6 domain sentences)
+        while keeping `self.model.mbert` and `self.model.projection` frozen when loading a pre-unified checkpoint.
+        """
+        assert self.tokenizer is not None and self.model is not None
+        corpus = [
+            (
+                "Lulusan S1 Informatika dari Universitas Surabaya yang menguasai Python, Go, dan C# dan memiliki pengalaman magang sebagai Software Engineer di PT Telekomunikasi Indonesia selama 6 bulan.",
+                [("S1 Informatika", "EDU"), ("Universitas Surabaya", "ORG"), ("Python, Go, dan C#", "SKILL"), ("Software Engineer", "ROLE"), ("PT Telekomunikasi Indonesia", "ORG"), ("6 bulan", "DUR")],
+            ),
+            (
+                "Graduate with Bachelor of Science : Finance from University of Nevada, Las Vegas skilled in Accounting, Payroll, Budget, and Microsoft Excel working as Consumer Banking Operations Manager for 10 years.",
+                [("Bachelor of Science : Finance", "EDU"), ("University of Nevada, Las Vegas", "ORG"), ("Accounting, Payroll, Budget, and Microsoft Excel", "SKILL"), ("Consumer Banking Operations Manager", "ROLE"), ("10 years", "DUR")],
+            ),
+            (
+                "Senior Accountant with Bachelor of Accounting from California State University proficient in General Ledger, GAAP, QuickBooks, and Financial Reporting at Deloitte Corp for 5 years.",
+                [("Senior Accountant", "ROLE"), ("Bachelor of Accounting", "EDU"), ("California State University", "ORG"), ("General Ledger, GAAP, QuickBooks, and Financial Reporting", "SKILL"), ("Deloitte Corp", "ORG"), ("5 years", "DUR")],
+            ),
+            (
+                "Registered Nurse holding BSN in Nursing from Hartford Hospital experienced in Patient Care, Clinical Triage, EMR, and HIPAA compliance for 4 years.",
+                [("Registered Nurse", "ROLE"), ("BSN", "EDU"), ("Hartford Hospital", "ORG"), ("Patient Care, Clinical Triage, EMR, and HIPAA", "SKILL"), ("4 years", "DUR")],
+            ),
+            (
+                "Executive Sous Chef with Culinary Arts Diploma from Culinary Institute skilled in Pastry, Menu Planning, Food Safety, and Inventory Control for 7 years.",
+                [("Executive Sous Chef", "ROLE"), ("Culinary Arts", "EDU"), ("Culinary Institute", "ORG"), ("Pastry, Menu Planning, Food Safety, and Inventory Control", "SKILL"), ("7 years", "DUR")],
+            ),
+            (
+                "Commercial Litigation Attorney holding J.D. from Temple University skilled in Legal Research, Contract Management, and Regulatory Compliance at Law Firm for 6 years.",
+                [("Commercial Litigation Attorney", "ROLE"), ("J.D.", "EDU"), ("Temple University", "ORG"), ("Legal Research, Contract Management, and Regulatory Compliance", "SKILL"), ("Law Firm", "ORG"), ("6 years", "DUR")],
+            ),
+        ]
+        input_ids_list, mask_list, label_ids_list = [], [], []
+        for text, spans in corpus * 4:
+            char_labels = ["O"] * len(text)
+            for phrase, ent_type in spans:
+                idx = text.find(phrase)
+                if idx != -1:
+                    for c_i in range(idx, idx + len(phrase)):
+                        char_labels[c_i] = ent_type
+            enc = self.tokenizer(
+                text, max_length=128, padding="max_length", truncation=True, return_offsets_mapping=True, return_tensors="pt"
+            )
+            offsets = enc["offset_mapping"][0].tolist()
+            tok_labels = []
+            prev_ent = "O"
+            for s_c, e_c in offsets:
+                if s_c == 0 and e_c == 0:
+                    tok_labels.append(-100)
+                    prev_ent = "O"
+                    continue
+                votes = [c for c in char_labels[s_c:e_c] if c != "O"]
+                if votes:
+                    curr_ent = votes[0]
+                    prefix = "I-" if prev_ent == curr_ent else "B-"
+                    tok_labels.append(TAG2ID[f"{prefix}{curr_ent}"])
+                    prev_ent = curr_ent
+                else:
+                    tok_labels.append(TAG2ID["O"])
+                    prev_ent = "O"
+            input_ids_list.append(enc["input_ids"][0])
+            mask_list.append(enc["attention_mask"][0])
+            label_ids_list.append(torch.tensor(tok_labels, dtype=torch.long))
+
+        b_ids = torch.stack(input_ids_list).to(self.device)
+        b_mask = torch.stack(mask_list).to(self.device)
+        b_lbl = torch.stack(label_ids_list).to(self.device)
+
+        with torch.no_grad():
+            hidden = self.model.mbert(input_ids=b_ids, attention_mask=b_mask).last_hidden_state.detach()
+
+        for p in self.model.ner_head.parameters():
+            p.requires_grad = True
+        opt = torch.optim.AdamW(self.model.ner_head.parameters(), lr=1e-2, weight_decay=0.01)
+        ce = nn.CrossEntropyLoss(ignore_index=-100)
+        self.model.ner_head.train()
+        for _ in range(18):
+            opt.zero_grad()
+            logits = self.model.ner_head(hidden)
+            loss = ce(logits.view(-1, len(NER_TAGS)), b_lbl.view(-1))
+            loss.backward()
+            opt.step()
+        for p in self.model.ner_head.parameters():
+            p.requires_grad = False
+        self.model.eval()
+
+    def predict_ner_spans_dl(self, text: str) -> Dict[str, List[str]]:
+        """
+        Runs token-level BIO inference using `self.model.ner_head` inside `SiameseMBERTCosineExtractor`.
+        """
+        empty: Dict[str, List[str]] = {"EDU": [], "ORG": [], "SKILL": [], "ROLE": [], "DUR": []}
+        if not self._is_loaded or self.tokenizer is None or self.model is None or not text.strip():
+            return empty
+        try:
+            enc = self.tokenizer(
+                text[:600],
+                return_offsets_mapping=True,
+                truncation=True,
+                max_length=128,
+                return_tensors="pt",
+            )
+            offsets = enc.pop("offset_mapping")[0].tolist()
+            enc = {k: v.to(self.device) for k, v in enc.items()}
+            with torch.no_grad():
+                _, ner_logits = self.model.encode_with_ner(enc["input_ids"], enc["attention_mask"])
+            pred_ids = torch.argmax(ner_logits[0], dim=-1).cpu().tolist()
+            curr_type, curr_start, curr_end = None, 0, 0
+            for p_id, (s_c, e_c) in zip(pred_ids, offsets):
+                if s_c == 0 and e_c == 0:
+                    continue
+                tag = ID2TAG.get(p_id, "O")
+                if tag.startswith("B-"):
+                    if curr_type and curr_end > curr_start:
+                        span = text[curr_start:curr_end].strip(" ,.;:()")
+                        if len(span) >= 2 and span.lower() not in [x.lower() for x in empty[curr_type]]:
+                            empty[curr_type].append(span)
+                    curr_type = tag[2:]
+                    curr_start, curr_end = s_c, e_c
+                elif tag.startswith("I-") and curr_type == tag[2:]:
+                    curr_end = e_c
+                else:
+                    if curr_type and curr_end > curr_start:
+                        span = text[curr_start:curr_end].strip(" ,.;:()")
+                        if len(span) >= 2 and span.lower() not in [x.lower() for x in empty[curr_type]]:
+                            empty[curr_type].append(span)
+                    curr_type = None
+            if curr_type and curr_end > curr_start:
+                span = text[curr_start:curr_end].strip(" ,.;:()")
+                if len(span) >= 2 and span.lower() not in [x.lower() for x in empty[curr_type]]:
+                    empty[curr_type].append(span)
+        except Exception as exc:
+            logger.debug("DL NER span prediction skipped: %s", exc)
+        return empty
 
     def get_document_embedding(self, text: str) -> np.ndarray:
         """
@@ -255,28 +412,43 @@ class MBERTMatchingService:
         return max(0.0, min(1.0, sim))
 
     @staticmethod
-    def calibrate_similarity_score(raw_sim: float) -> float:
-        """
-        Aligns the raw cosine similarity distribution from `best_siamese_mbert_cosine.pt`
-        (where Cognate Close Fit sits in [0.55, 0.855] and Core Fit sits in [0.855, 1.00])
-        with the Thesis Proposal decision thresholds:
-        - Not Fit   : < 0.60 (< 60%)
-        - Close Fit : 0.60 - 0.799 (60% - 79.9%)
-        - Fit       : >= 0.80 (>= 80%)
-        """
-        if raw_sim < 0.55:
-            # Map [0.00, 0.55) -> [0.00, 0.595)
-            calibrated = (raw_sim / 0.55) * 0.595
-        elif raw_sim < 0.855:
-            # Map [0.55, 0.855) -> [0.60, 0.798] (Close Fit band)
-            ratio = (raw_sim - 0.55) / (0.855 - 0.55)
-            calibrated = 0.60 + ratio * 0.198
-        else:
-            # Map [0.855, 1.00] -> [0.80, 0.995] (Fit band)
-            ratio = (raw_sim - 0.855) / max(1e-6, (1.0 - 0.855))
-            calibrated = 0.80 + ratio * 0.195
+    def regex_standardize_text(text: str) -> str:
+        """Applies the exact cased Regex standardization used in Notebook 03 prior to NER & tokenization."""
+        if not isinstance(text, str):
+            return ""
+        text = re.sub(r"https?://\S+|www\.\S+", " ", text)
+        text = re.sub(r"[\r\n\t]+", " ", text)
+        text = re.sub(r"[^\w\s.,;:()/\-+&#%]", " ", text)
+        return re.sub(r"\s+", " ", text).strip()
 
-        return max(0.0, min(1.0, float(calibrated)))
+    def _encode_bio_labels(self, text: str, entities: Dict[str, Any], max_len: int) -> List[int]:
+        """Aligns character-level entity spans to WordPiece BIO tag IDs (Notebook 03 Cell 3)."""
+        assert self.tokenizer is not None
+        char_labels = ["O"] * len(text)
+        for tag in ["ROLE", "EDU", "ORG", "DUR", "SKILL"]:
+            for phrase in entities.get(tag, []):
+                if phrase and len(phrase) >= 2:
+                    for m in re.finditer(re.escape(phrase), text, re.IGNORECASE):
+                        for idx in range(m.start(), min(m.end(), len(text))):
+                            char_labels[idx] = tag
+        enc = self.tokenizer(text, max_length=max_len, padding="max_length", truncation=True, return_offsets_mapping=True)
+        token_labels: List[int] = []
+        prev_ent = "O"
+        for s_c, e_c in enc["offset_mapping"]:
+            if s_c == 0 and e_c == 0:
+                token_labels.append(-100)
+                prev_ent = "O"
+                continue
+            votes = [c for c in char_labels[s_c:min(e_c, len(text))] if c != "O"]
+            if votes:
+                curr_ent = votes[0]
+                prefix = "I-" if prev_ent == curr_ent else "B-"
+                token_labels.append(TAG2ID.get(f"{prefix}{curr_ent}", 0))
+                prev_ent = curr_ent
+            else:
+                token_labels.append(TAG2ID["O"])
+                prev_ent = "O"
+        return token_labels
 
     @staticmethod
     def determine_status_category(score: float) -> str:
@@ -442,37 +614,49 @@ class MBERTMatchingService:
         - DUR   : Durasi Pengalaman Kerja & Rentang Tanggal (e.g., 16 years total experience, October 2007 to Current)
         """
         skill_patterns = [
-            # IT, Software & Data
+            # IT, Software & Data (including Dataset-Mined Keywords)
             r"\bPython\b", r"\bGo\b", r"\bGolang\b", r"\bJava\b", r"\bJavaScript\b", r"\bTypeScript\b",
             r"\bC\+\+(?=\s|,|\.|;|$)", r"\bC#(?=\s|,|\.|;|$)", r"\bSQL\b", r"\bPostgreSQL\b", r"\bMySQL\b",
             r"\bMongoDB\b", r"\bRedis\b", r"\bReact\b", r"\bNext\.js\b", r"\bVue\b", r"\bFastAPI\b",
             r"\bFlask\b", r"\bDjango\b", r"\bNode\.js\b", r"\bDocker\b", r"\bKubernetes\b", r"\bGit\b",
             r"\bAWS\b", r"\bGCP\b", r"\bMachine Learning\b", r"\bDeep Learning\b", r"\bNLP\b", r"\bmBERT\b",
             r"\bPyTorch\b", r"\bTensorFlow\b", r"\bPandas\b", r"\bNumPy\b", r"\bScikit-Learn\b",
-            r"\bData Analysis\b", r"\bDatabase\b", r"\bSharePoint\b", r"\bLotus Notes\b",
-            r"\bTechnical Support\b", r"\bMicrosoft Excel\b", r"\bMicrosoft Word\b",
-            r"\bMicrosoft Access\b", r"\bMicrosoft Power\s*Point\b", r"\bMicrosoft Office\b",
-            r"\bSAP\b", r"\bQuickBooks\b", r"\bOracle\b", r"\bSalesforce\b", r"\bTableau\b", r"\bPower BI\b",
-            # Banking, Finance, Accounting & Operations
+            r"\bData Analysis\b", r"\bDatabase(?:\s+Administration)?\b", r"\bSharePoint\b", r"\bLotus Notes\b",
+            r"\bTechnical Support\b", r"\b(?:Microsoft\s+)?Excel\b", r"\b(?:Microsoft\s+)?Word\b",
+            r"\b(?:Microsoft\s+)?Access\b", r"\b(?:Microsoft\s+)?Power\s*Point\b", r"\b(?:Microsoft\s+)?Outlook\b",
+            r"\bMicrosoft Office\b", r"\bActive Directory\b", r"\bLinux\b", r"\bWindows Server\b",
+            r"\bVeeva Vault\b", r"\bAS400\b", r"\bSAP\b", r"\bQuickBooks\b", r"\bOracle\b",
+            r"\bSalesforce\b", r"\bTableau\b", r"\bPower BI\b", r"\bTroubleshooting\b",
+            # Banking, Finance, Accounting & Operations (Dataset-Mined Keywords)
             r"\bFinancial Accounting\b", r"\bAccounting\b", r"\bGeneral Ledger\b", r"\bGAAP\b",
-            r"\bTax\b", r"\bAudit\b", r"\bInternal Audit\b", r"\bPayroll\b", r"\bBudget(?:ing)?\b",
+            r"\bFinancial Statements\b", r"\bTax(?:\s+Preparation|\s+Compliance)?\b", r"\bAudit(?:ing)?\b",
+            r"\bInternal Audit\b", r"\bPayroll\b", r"\bBudget(?:ing)?\b", r"\bBilling\b",
             r"\bCash Deposits\b", r"\bAccount Resolution\b", r"\bDefault Management\b",
             r"\bFinancial Analysis\b", r"\bFinancial Reporting\b", r"\bAccounts Payable\b",
-            r"\bAccounts Receivable\b", r"\bReconciliation\b", r"\bCredit Analysis\b",
+            r"\bAccounts Receivable\b", r"\bReconciliation\b", r"\bCredit(?:\s+Analysis)?\b",
+            r"\bClosing\b", r"\bForecasting\b", r"\bVariance Analysis\b", r"\bInvoicing\b",
             r"\bRisk Management\b", r"\bStrategic Management\b", r"\bBusiness Administration\b",
-            r"\bProcess Improvement\b", r"\bQuality Assurance\b", r"\bProcurement\b",
+            r"\bProcess Improvement\b", r"\bQuality(?:\s+Assurance|\s+Control)?\b", r"\bProcurement\b",
             r"\bChange Management\b", r"\bOrganizational Development\b", r"\bOperations Management\b",
             r"\bProject Management\b", r"\bStaffing\b", r"\bScheduling\b", r"\bRecruiting\b",
-            r"\bCall Center\b", r"\bCustomer Service\b", r"\bClient Relations\b", r"\bCoaching\b",
-            r"\bConflict Resolution\b", r"\bReporting\b", r"\bSales\b", r"\bLeadership\b",
+            r"\bCall Center\b", r"\bCustomer Service\b", r"\bCustomer Satisfaction\b",
+            r"\bClient Relations\b", r"\bCoaching\b", r"\bConflict Resolution\b", r"\bReporting\b",
+            r"\bMarketing\b", r"\bSales\b", r"\bLeadership\b", r"\bSafety\b", r"\bInsurance\b",
+            r"\bDocumentation\b", r"\bCritical Thinking\b", r"\bTime Management\b",
             r"\bAgile\b", r"\bScrum\b", r"\bPublic Relations\b", r"\bHuman Resources\b",
-            # Healthcare, Culinary, Education, Legal & Indonesian terms
+            # Healthcare, Culinary, Education, Legal & Indonesian terms (Dataset-Mined Keywords)
             r"\bPatient Care\b", r"\bClinical\b", r"\bMedication Administration\b", r"\bTriage\b",
-            r"\bEMR\b", r"\bHIPAA\b", r"\bVital Signs\b", r"\bCulinary\b", r"\bPastry\b",
-            r"\bFood Safety\b", r"\bHACCP\b", r"\bMenu Planning\b", r"\bInventory Control\b",
+            r"\bEMR\b", r"\bHIPAA\b", r"\bVital Signs\b", r"\bMedical Terminology\b", r"\bCPR\b",
+            r"\bPhlebotomy\b", r"\bElectronic Health Records\b", r"\bCulinary(?:\s+Arts)?\b",
+            r"\bPastry\b", r"\bFood Safety\b", r"\bHACCP\b", r"\bMenu Planning\b",
+            r"\bFood Preparation\b", r"\bKitchen Management\b", r"\bBanquet\b", r"\bCatering\b",
+            r"\bSanitation\b", r"\bInventory(?:\s+Control|\s+Management)?\b", r"\bCost Control\b",
             r"\bCurriculum(?:\s+Development)?\b", r"\bLesson Planning\b", r"\bClassroom Management\b",
-            r"\bInstructional Design\b", r"\bLitigation\b", r"\bLegal Research\b",
-            r"\bContract Management\b", r"\bRegulatory Compliance\b", r"\bDue Diligence\b",
+            r"\bInstructional Design\b", r"\bSpecial Education\b", r"\bTutoring\b",
+            r"\bStudent Assessment\b", r"\bLitigation\b", r"\bLegal Research\b", r"\bLegal Drafting\b",
+            r"\bContracts?\b", r"\bContract Management\b", r"\bContract Negotiation\b",
+            r"\bRegulatory Compliance\b", r"\bDue Diligence\b", r"\bTrial Preparation\b",
+            r"\bMediation\b", r"\bArbitration\b", r"\bCorporate Law\b",
             r"\bKomunikasi\b", r"\bManajemen Waktu\b", r"\bKerja Tim\b", r"\bAkuntansi\b",
         ]
 
@@ -486,6 +670,9 @@ class MBERTMatchingService:
             rf"\b(?:S1|S2|S3|D3|D4)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+)?\b",
             r"\bS\.Kom\b", r"\bS\.T\b", r"\bS\.E\b", r"\bS\.Si\b", r"\bS\.H\b", r"\bS\.Pd\b",
             r"\bM\.Kom\b", r"\bM\.T\b", r"\bMBA\b", r"\bBSN\b", r"\bCPA\b", r"\bJ\.D\.\b", r"\bPh\.?D\b",
+            r"\bHigh School Diploma\b", r"\bGED\b", r"\bAssociate['’]?s Degree\b",
+            r"\bBachelor['’]?s Degree(?:\s+in\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)?\b",
+            r"\bMaster['’]?s Degree(?:\s+in\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)?\b",
             rf"\bBachelor(?:\s+of|\s+in)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
             rf"\bMaster(?:\s+of|\s+in)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
             rf"\bAssociate(?:\s+of|\s+in)\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
@@ -494,12 +681,6 @@ class MBERTMatchingService:
             rf"\bDiploma\s+[A-Z][a-zA-Z0-9]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z0-9]+){{0,2}}\b",
         ]
 
-        # Prevent degree subjects before "University" from being captured as "[Major] University"
-        degree_field_exclusion = (
-            r"(?<!\bFinance\s)(?<!\bScience\s)(?<!\bArts\s)(?<!\bBusiness\s)"
-            r"(?<!\bAccounting\s)(?<!\bEngineering\s)(?<!\bEducation\s)(?<!\bNursing\s)"
-            r"(?<!\bManagement\s)(?<!\bEconomics\s)(?<!\bPsychology\s)(?<!\bCommunications\s)"
-        )
         org_patterns = [
             rf"\bUniversity\s+of\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+)?(?:\s*,\s*[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)?\b",
             rf"\bUniversitas\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
@@ -507,8 +688,9 @@ class MBERTMatchingService:
             rf"\bPoliteknik\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
             rf"\bPT\.?\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,3}}\b",
             rf"\bCV\.?\s+[A-Z][a-zA-Z]+(?:{stop_lookahead}\s+[A-Z][a-zA-Z]+){{0,2}}\b",
-            rf"\b[A-Z][a-zA-Z]+\s+State\s+University\b",
-            r"\b[A-Z][a-zA-Z]+\s+(?:Hospital|Medical Center|Corporation|Corp|Inc|LLC|Group|Bank)\b",
+            rf"\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?\s+State\s+University\b",
+            r"\b(?:Culinary Institute(?:\s+of\s+America)?|Community College|Technical College|Technical Institute|City College|State College|Law Firm|School District)\b",
+            r"\b[A-Z][a-zA-Z]+\s+(?:Hospital|Medical Center|Clinic|Healthcare|College|Academy|Institute|Law School|Corporation|Corp|Inc|LLC|Group|Bank)\b",
         ]
 
         role_patterns = [
@@ -522,23 +704,30 @@ class MBERTMatchingService:
             r"\bDEFAULT MANAGEMENT SUPERVISOR\b",
             r"\bCALL CENTER (?:MANAGER|SUPERVISOR|REPRESENTATIVE)\b",
             # Dynamic compound role patterns across industries
-            r"\b(?:Senior\s+|Junior\s+|Lead\s+|Chief\s+|Assistant\s+)?(?:Consumer\s+Banking\s+|Default\s+Management\s+|Ticketing\s+|Customer\s+Service\s+|Operations\s+|Financial\s+|Accounting\s+|Credit\s+|Risk\s+|Branch\s+|Project\s+|Product\s+|Program\s+|HR\s+|Human\s+Resources\s+|Marketing\s+|Sales\s+|Business\s+Development\s+|Quality\s+Assurance\s+|Supply\s+Chain\s+|Procurement\s+|Client\s+Relations\s+|Account\s+)?(?:Manager|Supervisor|Director|Analyst|Specialist|Coordinator|Officer|Administrator|Representative|Advisor|Consultant)\b",
+            r"\b(?:Senior\s+|Junior\s+|Lead\s+|Chief\s+|Assistant\s+|Executive\s+)?(?:Consumer\s+Banking\s+|Default\s+Management\s+|Ticketing\s+|Customer\s+Service\s+|Operations\s+|Financial\s+|Accounting\s+|Accounts\s+Payable\s+|Accounts\s+Receivable\s+|Credit\s+|Risk\s+|Branch\s+|Project\s+|Product\s+|Program\s+|HR\s+|Human\s+Resources\s+|Marketing\s+|Sales\s+|Business\s+Development\s+|Quality\s+Assurance\s+|Supply\s+Chain\s+|Procurement\s+|Client\s+Relations\s+|Account\s+|Training\s+|Patient\s+Access\s+|Restaurant\s+|Kitchen\s+)?(?:Manager|Supervisor|Director|Analyst|Specialist|Coordinator|Officer|Administrator|Representative|Advisor|Consultant)\b",
             r"\b(?:Senior\s+|Junior\s+|Lead\s+)?Software Engineer\b",
             r"\b(?:Senior\s+|Junior\s+)?Data Scientist\b",
             r"\bData Analyst\b", r"\bSystems Analyst\b", r"\bFull Stack Developer\b",
             r"\bFrontend Developer\b", r"\bBackend Developer\b", r"\bDevOps Engineer\b",
             r"\bIT Specialist\b", r"\bSystem Administrator\b", r"\bDatabase Administrator\b",
-            r"\bTechnical Support\b", r"\bHelp Desk\b", r"\bNetwork Specialist\b",
-            r"\bRegistered Nurse\b", r"\bMedical Assistant\b", r"\bClinical Coordinator\b",
-            r"\bHealthcare Administrator\b", r"\bPharmacist\b", r"\bPhysician\b",
-            r"\b(?:Senior\s+|Staff\s+)?Accountant\b", r"\bFinancial Analyst\b", r"\bInternal Auditor\b",
-            r"\bAuditor\b", r"\bTax Specialist\b", r"\bPayroll Specialist\b", r"\bBookkeeper\b",
-            r"\b(?:Executive\s+|Head\s+|Sous\s+)?Chef\b", r"\bLine Cook\b", r"\bPrep Cook\b",
-            r"\bKitchen Manager\b", r"\bPastry Chef\b", r"\bBaker\b",
-            r"\b(?:Physical Education\s+)?Teacher\b", r"\bInstructor\b", r"\bProfessor\b",
-            r"\bLecturer\b", r"\bCorporate Trainer\b", r"\bTechnical Trainer\b",
-            r"\bInstructional Designer\b", r"\bAcademic Advisor\b",
-            r"\b(?:Commercial\s+|Legal\s+)?Counsel\b", r"\bAttorney\b", r"\bLawyer\b",
+            r"\bTechnical Support(?:\s+Specialist|\s+Engineer)?\b", r"\bHelp Desk(?:\s+Analyst|\s+Specialist)?\b",
+            r"\bNetwork (?:Specialist|Engineer|Administrator)\b",
+            r"\bRegistered Nurse\b", r"\bMedical Assistant\b", r"\bDental Assistant\b",
+            r"\bClinical Coordinator\b", r"\bHealthcare Administrator\b", r"\bPharmacist\b",
+            r"\bPhysician\b", r"\bNursing Assistant\b", r"\bLicensed Practical Nurse\b",
+            r"\b(?:Senior\s+|Staff\s+|Cost\s+|Tax\s+)?Accountant\b", r"\bFinancial Analyst\b",
+            r"\bInternal Auditor\b", r"\bAuditor\b", r"\bTax Specialist\b",
+            r"\bPayroll Specialist\b", r"\bBookkeeper\b",
+            r"\b(?:Executive\s+|Head\s+|Sous\s+|Executive\s+Sous\s+|Banquet\s+|Pastry\s+)?Chef\b",
+            r"\bChef de Cuisine\b", r"\bLine Cook\b", r"\bPrep Cook\b",
+            r"\bKitchen Manager\b", r"\bRestaurant Manager\b", r"\bBaker\b",
+            r"\b(?:Physical Education\s+|Classroom\s+|Special Education\s+|Assistant\s+|Preschool\s+|Substitute\s+)?Teacher\b",
+            r"\bInstructor\b", r"\bProfessor\b", r"\bLecturer\b",
+            r"\bCorporate Trainer\b", r"\bTechnical Trainer\b",
+            r"\bInstructional Designer\b", r"\bAcademic Advisor\b", r"\bCurriculum Educator\b",
+            r"\b(?:Commercial\s+|Legal\s+|General\s+|Corporate\s+)?Counsel\b",
+            r"\b(?:Associate\s+|Litigation\s+|Senior\s+|Trial\s+)?Attorney\b",
+            r"\bLitigation Associate\b", r"\bLawyer\b",
             r"\bParalegal(?:\s+Clerk)?\b", r"\bLegal Assistant\b", r"\bCompliance Specialist\b",
             r"\bContract Administrator\b", r"\bAdvocate\b",
         ]
@@ -653,88 +842,122 @@ class MBERTMatchingService:
             "experience_years_detected": years_exp,
         }
 
+    def extract_entities_with_dl(self, text: str) -> Dict[str, Any]:
+        """
+        Unified Deep Learning + Dataset-Mined Hybrid NER Extraction:
+        Runs the fine-tuned `SiameseMBERTCosineExtractor.ner_head` token classification layer
+        (11 BIO labels) alongside the dataset-mined competency dictionary, merging spans
+        cleanly for both CV and Job Description documents.
+        """
+        base_ent = self.extract_entities_hybrid(text)
+        dl_spans = self.predict_ner_spans_dl(text)
+        noise_spans = {
+            "and", "or", "the", "in", "of", "to", "for", "with", "on", "at", "by",
+            "position", "job", "description", "summary", "experience", "education", "skills",
+        }
+        limits = {"EDU": 6, "ORG": 6, "SKILL": 16, "ROLE": 6, "DUR": 5}
+        for tag, max_k in limits.items():
+            existing = list(base_ent.get(tag, []))
+            for span in dl_spans.get(tag, []):
+                clean_s = re.sub(r"\s+", " ", span.strip(" ,.;:()[]/-"))
+                if len(clean_s) < 3 or clean_s.lower() in noise_spans:
+                    continue
+                # Avoid partial single-word fragments if already covered by a fuller entity span
+                if any(clean_s.lower() in ex.lower() or ex.lower() in clean_s.lower() for ex in existing):
+                    continue
+                existing.append(clean_s)
+            base_ent[tag] = existing[:max_k]
+
+        base_ent["skills"] = base_ent["SKILL"]
+        base_ent["education"] = base_ent["EDU"]
+        return base_ent
+
+    @staticmethod
+    def compute_matched_entities(
+        cv_entities: Dict[str, Any], job_entities: Dict[str, Any]
+    ) -> Dict[str, List[str]]:
+        """
+        Finds matching or overlapping NER competency entities between the Candidate CV
+        and the Job Description across all 5 Thesis Table 2.5 categories.
+        """
+        matched: Dict[str, List[str]] = {"ROLE": [], "SKILL": [], "EDU": [], "DUR": [], "ORG": []}
+        stop_tokens = {"and", "the", "for", "with", "of", "in", "to", "senior", "junior", "lead", "staff", "associate"}
+        for tag in ["ROLE", "SKILL", "EDU", "DUR", "ORG"]:
+            cv_list = cv_entities.get(tag, [])
+            job_list = job_entities.get(tag, [])
+            for c_item in cv_list:
+                c_low = c_item.lower()
+                c_toks = {
+                    t for t in re.findall(r"[a-zA-Z0-9+#]{2,}", c_low) if t not in stop_tokens
+                }
+                is_match = False
+                for j_item in job_list:
+                    j_low = j_item.lower()
+                    if c_low == j_low or c_low in j_low or j_low in c_low:
+                        is_match = True
+                        break
+                    j_toks = {
+                        t for t in re.findall(r"[a-zA-Z0-9+#]{2,}", j_low) if t not in stop_tokens
+                    }
+                    if c_toks and j_toks and (c_toks & j_toks):
+                        # Require at least 1 strong shared domain/skill/degree/role token
+                        is_match = True
+                        break
+                if is_match and c_item not in matched[tag]:
+                    matched[tag].append(c_item)
+        return matched
+
     @classmethod
     def detect_macro_domain(cls, text: str, entities: Optional[Dict[str, Any]] = None) -> str:
         """
         Infers which of the 6 macro domains (`INFORMATION-TECHNOLOGY`, `HEALTHCARE`,
         `ACCOUNTANT`, `CHEF`, `TEACHER`, `ADVOCATE`) best represents the document.
         """
-        ent = entities or cls.extract_entities_hybrid(text)
-        priority_text = " ".join(ent.get("ROLE", []) * 3 + ent.get("SKILL", []) * 2 + ent.get("EDU", [])).lower()
-        full_lower = f"{priority_text} {text.lower()}"
-
-        scores: Dict[str, int] = {dom: 0 for dom in cls.MACRO_DOMAIN_KEYWORDS}
-        for dom, keywords in cls.MACRO_DOMAIN_KEYWORDS.items():
-            for kw in keywords:
-                if re.search(rf"\b{re.escape(kw)}\b", priority_text):
-                    scores[dom] += 4
-                elif re.search(rf"\b{re.escape(kw)}\b", full_lower):
-                    scores[dom] += 1
-
-        best_dom = max(scores, key=lambda k: scores[k])
-        return best_dom if scores[best_dom] > 0 else "GENERAL"
+        domain, _ = cls.detect_domain_and_tier(text, doc_type="CANDIDATE_CV", entities=entities)
+        return domain
 
     @classmethod
-    def detect_subdomain_bucket(cls, text: str, entities: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Detects fine-grained sub-domain specialization to distinguish direct Core Fit
-        (`CORE_DOMAIN_ROLE`) from adjacent/cognate roles (`COGNATE_SUBROLE`).
-        """
-        ent = entities or cls.extract_entities_hybrid(text)
-        priority_text = " ".join(ent.get("ROLE", []) * 4 + ent.get("SKILL", [])[:8]).lower()
-        full_lower = f"{priority_text} {text[:1200].lower()}"
-
-        scores: Dict[str, int] = {sub: 0 for sub in cls.SUBDOMAIN_BUCKETS}
-        for sub, keywords in cls.SUBDOMAIN_BUCKETS.items():
-            for kw in keywords:
-                if re.search(rf"\b{re.escape(kw)}\b", priority_text):
-                    scores[sub] += 4
-                elif re.search(rf"\b{re.escape(kw)}\b", full_lower):
-                    scores[sub] += 1
-
-        best_sub = max(scores, key=lambda k: scores[k])
-        return best_sub if scores[best_sub] > 0 else "GENERAL_SUBROLE"
-
-    @classmethod
-    def determine_job_tier(
+    def detect_domain_and_tier(
         cls,
-        cv_text: str,
-        cv_entities: Dict[str, Any],
-        job_text: str,
-        job_entities: Dict[str, Any],
-        cv_macro_domain: str,
-        job_macro_domain: str,
-    ) -> str:
+        text: str,
+        doc_type: str = "CANDIDATE_CV",
+        entities: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[str, str]:
         """
-        Determines whether the target job posting is a direct core role match (`CORE_DOMAIN_ROLE`)
-        or a cognate/adjacent role (`COGNATE_SUBROLE`) relative to the candidate's CV profile.
+        Infers `[DOMAIN]` and `[TIER]` using the exact Notebook 03 symmetric logic so
+        runtime embeddings match `best_siamese_mbert_cosine.pt`.
         """
-        if cv_macro_domain != job_macro_domain or job_macro_domain == "GENERAL":
-            return "CORE_DOMAIN_ROLE"
+        ent = entities or cls.extract_entities_hybrid(text)
+        skill_text = " ".join(ent.get("SKILL", [])).lower()
+        scores: Dict[str, int] = {}
+        for dom, keywords in cls.MACRO_DOMAIN_KEYWORDS.items():
+            scores[dom] = sum(
+                1 for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", skill_text + " " + text.lower())
+            )
+        top_skill_dom = max(scores, key=lambda k: scores[k]) if any(scores.values()) else "GENERAL"
 
-        cv_sub = cls.detect_subdomain_bucket(cv_text, cv_entities)
-        job_sub = cls.detect_subdomain_bucket(job_text, job_entities)
+        if doc_type == "JOB_POSTING":
+            pos_m = re.search(r"Position:\s*(.+?)(?=\.\s*(?:Experience Level|Required Skills|Job Description)|[\r\n]|$)", text, re.IGNORECASE)
+            target = pos_m.group(1).strip() if pos_m else text[:400]
+            core_doms = [d for d, p in cls.CORE_ROLE_PATTERNS.items() if re.search(p, target, re.IGNORECASE)]
+            cog_doms = [d for d, p in cls.COGNATE_ROLE_PATTERNS.items() if re.search(p, target, re.IGNORECASE)]
+            if cog_doms:
+                return ", ".join(cog_doms), "COGNATE_SUBROLE"
+            if core_doms:
+                return ", ".join(core_doms), "CORE_DOMAIN_ROLE"
+            return top_skill_dom, "CORE_DOMAIN_ROLE"
 
-        # Also check direct role & skill token overlap
-        cv_role_tokens = {
-            tok
-            for r in cv_entities.get("ROLE", [])
-            for tok in re.findall(r"[a-zA-Z]{3,}", r.lower())
-            if tok not in {"senior", "junior", "lead", "staff", "the", "and"}
-        }
-        job_role_tokens = {
-            tok
-            for r in job_entities.get("ROLE", [])
-            for tok in re.findall(r"[a-zA-Z]{3,}", r.lower())
-            if tok not in {"senior", "junior", "lead", "staff", "the", "and"}
-        }
-        role_overlap = len(cv_role_tokens & job_role_tokens)
-
-        if cv_sub == job_sub and cv_sub != "GENERAL_SUBROLE":
-            return "CORE_DOMAIN_ROLE"
-        if role_overlap >= 2:
-            return "CORE_DOMAIN_ROLE"
-        return "COGNATE_SUBROLE"
+        head85 = text[:85]
+        header_matches = [
+            (m.start(), dom)
+            for dom, pat in cls.CV_HEADER_PATTERNS.items()
+            for m in [re.search(pat, head85, re.IGNORECASE)]
+            if m
+        ]
+        if header_matches:
+            header_matches.sort(key=lambda x: x[0])
+            return header_matches[0][1], "CANDIDATE_PROFILE"
+        return top_skill_dom, "CANDIDATE_PROFILE"
 
     @classmethod
     def build_ner_enriched_text(
@@ -746,24 +969,18 @@ class MBERTMatchingService:
         tier_tag: Optional[str] = None,
     ) -> str:
         """
-        Builds structured competency text from NER entities (Table 2.5) prior to mBERT encoding.
-        Matches the exact schema learned by `best_siamese_mbert_cosine.pt` in Notebook 03:
-        `[DOC] ... | [DOMAIN] ... | [TIER] ... | [ROLE] ... | [SKILL] ... | [EDU] ... | [DUR] ... | [ORG] ... || {text}`
+        Builds structured competency text from NER entities matching Notebook 03 Cell 3:
+        `[DOC] ... | [DOMAIN] ... | [TIER] ... | [ROLE] ... | [SKILL] ... | [EDU] ... | [DUR] ... | [ORG] ... || {clean_text}`
         """
-        ent = entities or cls.extract_entities_hybrid(text)
-        dom_str = domain_tag or cls.detect_macro_domain(text, ent)
-        if not tier_tag:
-            tier_str = "CANDIDATE_PROFILE" if doc_type == "CANDIDATE_CV" else "CORE_DOMAIN_ROLE"
-        else:
-            tier_str = tier_tag
+        clean_text = cls.regex_standardize_text(text)
+        ent = entities or cls.extract_entities_hybrid(clean_text)
+        inferred_dom, inferred_tier = cls.detect_domain_and_tier(clean_text, doc_type=doc_type, entities=ent)
+        dom_str = domain_tag or inferred_dom
+        tier_str = tier_tag or inferred_tier
 
         role_str = ", ".join(ent["ROLE"][:3]) if ent.get("ROLE") else "Unspecified"
-        if doc_type == "JOB_POSTING" and tier_str == "COGNATE_SUBROLE":
-            skill_str = "Unspecified"
-            edu_str = "Unspecified"
-        else:
-            skill_str = ", ".join(ent["SKILL"][:8]) if ent.get("SKILL") else "Unspecified"
-            edu_str = ", ".join(ent["EDU"][:4]) if ent.get("EDU") else "Unspecified"
+        skill_str = ", ".join(ent["SKILL"][:8]) if ent.get("SKILL") else "Unspecified"
+        edu_str = ", ".join(ent["EDU"][:4]) if ent.get("EDU") else "Unspecified"
         dur_str = ", ".join(ent["DUR"][:3]) if ent.get("DUR") else "Unspecified"
         org_str = ", ".join(ent["ORG"][:4]) if ent.get("ORG") else "Unspecified"
 
@@ -772,7 +989,7 @@ class MBERTMatchingService:
             f"[ROLE] {role_str} | [SKILL] {skill_str} | "
             f"[EDU] {edu_str} | [DUR] {dur_str} | [ORG] {org_str} || "
         )
-        return header + text
+        return header + clean_text
 
     def match_cv_with_job(
         self,
@@ -781,59 +998,52 @@ class MBERTMatchingService:
         job_description: str,
     ) -> Dict[str, Any]:
         """
-        Executes end-to-end matching process:
-        1. Extracts NER competency entities (EDU, ORG, SKILL, ROLE, DUR) per Thesis Table 2.5.
-        2. Infers macro domain and role alignment tier (`CORE_DOMAIN_ROLE` vs `COGNATE_SUBROLE`).
-        3. Encodes NER-enriched texts into 768-d vectors via fine-tuned `SiameseMBERTCosineExtractor`.
-        4. Computes Cosine Similarity via `sklearn.metrics.pairwise.cosine_similarity` and calibrates to Proposal thresholds.
-        5. Classifies status category (`Fit` >= 80%, `Close Fit` 60-79.9%, `Not Fit` < 60%).
+        End-to-end matching aligned with Notebook 03:
+        1. Extracts NER entities symmetrically on CV & Job Description (DL NER + hybrid dictionary) for Web UI.
+        2. Encodes standardized NER-enriched texts at max_length=128 via `SiameseMBERTCosineExtractor`.
+        3. Computes raw `sklearn` Cosine Similarity and classifies directly against Thesis thresholds (`80%`, `60%`).
         """
-        full_job_text = f"Position: {job_title}. Job Description: {job_description}"
+        job_desc_clean = job_description.strip()
+        if re.match(r"^\s*Position\s*:", job_desc_clean, re.IGNORECASE) or not job_title.strip():
+            full_job_text = job_desc_clean
+        else:
+            full_job_text = f"Position: {job_title.strip()}. Job Description: {job_desc_clean}"
 
-        cv_entities = self.extract_entities_hybrid(cv_text)
-        job_entities = self.extract_entities_hybrid(full_job_text)
+        cv_entities = self.extract_entities_with_dl(cv_text)
+        job_entities = self.extract_entities_with_dl(full_job_text)
+        matched_entities = self.compute_matched_entities(cv_entities, job_entities)
 
-        cv_domain = self.detect_macro_domain(cv_text, cv_entities)
-        job_domain = self.detect_macro_domain(full_job_text, job_entities)
-        job_tier = self.determine_job_tier(
-            cv_text=cv_text,
-            cv_entities=cv_entities,
-            job_text=full_job_text,
-            job_entities=job_entities,
-            cv_macro_domain=cv_domain,
-            job_macro_domain=job_domain,
-        )
+        cv_clean = self.regex_standardize_text(cv_text)
+        job_clean = self.regex_standardize_text(full_job_text)
+        cv_domain, _ = self.detect_domain_and_tier(cv_clean, doc_type="CANDIDATE_CV")
+        job_domain, _ = self.detect_domain_and_tier(job_clean, doc_type="JOB_POSTING")
 
-        cv_enriched = self.build_ner_enriched_text(
-            cv_text,
-            doc_type="CANDIDATE_CV",
-            entities=cv_entities,
-            domain_tag=cv_domain,
-            tier_tag="CANDIDATE_PROFILE",
-        )
-        job_enriched = self.build_ner_enriched_text(
-            full_job_text,
-            doc_type="JOB_POSTING",
-            entities=job_entities,
-            domain_tag=job_domain,
-            tier_tag=job_tier,
-        )
+        cv_enriched = self.build_ner_enriched_text(cv_clean, doc_type="CANDIDATE_CV")
+        job_enriched = self.build_ner_enriched_text(job_clean, doc_type="JOB_POSTING")
 
         cv_vec = self.get_document_embedding(cv_enriched)
         job_vec = self.get_document_embedding(job_enriched)
 
+        # Model 2 is trained directly with PureCosineMarginLoss -> raw sklearn cosine is natively calibrated
         raw_cosine = self.calculate_cosine_similarity(cv_vec, job_vec)
-        calibrated_score = self.calibrate_similarity_score(raw_cosine) if self._is_fine_tuned else raw_cosine
-
-        score_rounded = round(calibrated_score, 4)
+        score_rounded = round(raw_cosine, 4)
         percentage = round(score_rounded * 100.0, 2)
         status = self.determine_status_category(score_rounded)
 
-        # Attach metadata for transparency in API response
         cv_entities["detected_domain"] = cv_domain
         cv_entities["job_detected_domain"] = job_domain
-        cv_entities["raw_cosine_similarity"] = round(raw_cosine, 4)
+        cv_entities["raw_cosine_similarity"] = score_rounded
         cv_entities["fine_tuned_model_loaded"] = self._is_fine_tuned
+        cv_entities["job_entities"] = {
+            "EDU": job_entities.get("EDU", []),
+            "ORG": job_entities.get("ORG", []),
+            "SKILL": job_entities.get("SKILL", []),
+            "ROLE": job_entities.get("ROLE", []),
+            "DUR": job_entities.get("DUR", []),
+            "ner_tagged_preview": job_entities.get("ner_tagged_preview", ""),
+            "experience_years_detected": job_entities.get("experience_years_detected", 0),
+        }
+        cv_entities["matched_entities"] = matched_entities
 
         return {
             "similarity_score": score_rounded,
@@ -846,25 +1056,6 @@ class MBERTMatchingService:
             "job_text_full": full_job_text,
         }
 
-    @staticmethod
-    def inverse_calibrate_score(calibrated_score: float, category: str) -> float:
-        """
-        Converts a target calibrated score (0.00 - 1.00) or validated category ('Fit', 'Close Fit', 'Not Fit')
-        back into the raw cosine similarity space of `SiameseMBERTCosineExtractor`.
-        """
-        cat_norm = category.strip().lower()
-        if cat_norm == "fit":
-            score = max(0.80, min(0.995, calibrated_score))
-            ratio = (score - 0.80) / 0.195
-            return 0.855 + ratio * (0.985 - 0.855)
-        if cat_norm == "close fit":
-            score = max(0.60, min(0.798, calibrated_score))
-            ratio = (score - 0.60) / 0.198
-            return 0.55 + ratio * (0.855 - 0.55)
-        # Not Fit
-        score = max(0.05, min(0.59, calibrated_score))
-        return (score / 0.595) * 0.52
-
     def retrain_on_validated_pair(
         self,
         cv_text: Optional[str] = None,
@@ -874,9 +1065,8 @@ class MBERTMatchingService:
         epochs: int = 4,
     ) -> Dict[str, Any]:
         """
-        Performs incremental fine-tuning (re-training) on `SiameseMBERTCosineExtractor`
-        using the newly validated CV-Job pair (plus a balanced replay sample from the CSV dataset)
-        and saves the updated weights to `best_siamese_mbert_cosine.pt`.
+        Incremental fine-tuning on `SiameseMBERTCosineExtractor` using the validated pair
+        plus a balanced replay sample aligned directly to Notebook 03 cosine targets (0.90, 0.70, 0.15).
         """
         import shutil
         import time
@@ -889,7 +1079,6 @@ class MBERTMatchingService:
         assert self.tokenizer is not None
         assert self.model is not None
 
-        # Create safe backup of initial Colab checkpoint if not already backed up
         if self.fine_tuned_path and os.path.exists(self.fine_tuned_path):
             backup_path = self.fine_tuned_path.replace(".pt", ".backup.pt")
             if not os.path.exists(backup_path):
@@ -900,84 +1089,48 @@ class MBERTMatchingService:
                     logger.warning("Could not create checkpoint backup: %s", b_err)
 
         train_pairs: List[Tuple[str, str, float]] = []
-
-        # 1. Primary validated pair (weighted 3x so model adapts immediately to expert validation)
-        target_cal = max(0.0, min(1.0, validated_percentage / 100.0))
-        target_raw = self.inverse_calibrate_score(target_cal, validated_category)
+        target_score = max(0.0, min(1.0, validated_percentage / 100.0))
 
         primary_cv_enr = None
         primary_job_enr = None
         if cv_text and job_text:
-            cv_ent = self.extract_entities_hybrid(cv_text)
-            job_ent = self.extract_entities_hybrid(job_text)
-            cv_dom = self.detect_macro_domain(cv_text, cv_ent)
-            job_dom = self.detect_macro_domain(job_text, job_ent)
-            cat_lower = validated_category.strip().lower()
-            if cat_lower == "close fit":
-                job_tier = "COGNATE_SUBROLE"
-                job_dom = cv_dom
-            elif cat_lower == "fit":
-                job_tier = "CORE_DOMAIN_ROLE"
-                job_dom = cv_dom
-            else:
-                job_tier = "CORE_DOMAIN_ROLE"
-
-            primary_cv_enr = self.build_ner_enriched_text(
-                cv_text, doc_type="CANDIDATE_CV", entities=cv_ent, domain_tag=cv_dom, tier_tag="CANDIDATE_PROFILE"
-            )
-            primary_job_enr = self.build_ner_enriched_text(
-                job_text, doc_type="JOB_POSTING", entities=job_ent, domain_tag=job_dom, tier_tag=job_tier
-            )
+            primary_cv_enr = self.build_ner_enriched_text(cv_text, doc_type="CANDIDATE_CV")
+            primary_job_enr = self.build_ner_enriched_text(job_text, doc_type="JOB_POSTING")
             for _ in range(3):
-                train_pairs.append((primary_cv_enr, primary_job_enr, target_raw))
+                train_pairs.append((primary_cv_enr, primary_job_enr, target_score))
 
-        # 2. Load balanced replay buffer from dataset CSV to prevent catastrophic forgetting
         total_csv_rows = 0
         if os.path.exists(settings.DATASET_CSV_PATH):
             try:
                 df = pd.read_csv(settings.DATASET_CSV_PATH)
                 total_csv_rows = len(df)
-                for lbl_str, raw_t in [("fit", 0.94), ("close fit", 0.72), ("not fit", 0.12)]:
+                for lbl_str, target_val in [("fit", 0.90), ("close fit", 0.70), ("not fit", 0.15)]:
                     sub_df = df[df["kategori"].astype(str).str.strip().str.lower() == lbl_str]
                     if len(sub_df) > 0:
                         sampled = sub_df.tail(2) if len(sub_df) >= 2 else sub_df
                         for _, row in sampled.iterrows():
-                            r_cv = str(row["cv"])
-                            r_job = str(row["job"])
-                            c_ent = self.extract_entities_hybrid(r_cv)
-                            j_ent = self.extract_entities_hybrid(r_job)
-                            c_dom = self.detect_macro_domain(r_cv, c_ent)
-                            j_dom = self.detect_macro_domain(r_job, j_ent)
-                            j_tier = "COGNATE_SUBROLE" if lbl_str == "close fit" else "CORE_DOMAIN_ROLE"
-                            c_enr = self.build_ner_enriched_text(
-                                r_cv, doc_type="CANDIDATE_CV", entities=c_ent, domain_tag=c_dom, tier_tag="CANDIDATE_PROFILE"
-                            )
-                            j_enr = self.build_ner_enriched_text(
-                                r_job, doc_type="JOB_POSTING", entities=j_ent, domain_tag=j_dom, tier_tag=j_tier
-                            )
-                            train_pairs.append((c_enr, j_enr, raw_t))
+                            c_enr = self.build_ner_enriched_text(str(row["cv"]), doc_type="CANDIDATE_CV")
+                            j_enr = self.build_ner_enriched_text(str(row["job"]), doc_type="JOB_POSTING")
+                            train_pairs.append((c_enr, j_enr, target_val))
             except Exception as csv_err:
                 logger.warning("Failed to sample replay rows from CSV: %s", csv_err)
 
-        # Freeze lower mBERT layers; fine-tune projection head + top encoder layer for fast, stable adaptation
         for param in self.model.mbert.parameters():
             param.requires_grad = False
         for param in self.model.mbert.encoder.layer[-1].parameters():
             param.requires_grad = True
+        for param in self.model.ner_head.parameters():
+            param.requires_grad = True
         for param in self.model.projection.parameters():
             param.requires_grad = True
 
-        # Measure before similarity if primary pair is provided
         before_pct = validated_percentage
         if primary_cv_enr and primary_job_enr:
             self.model.eval()
             u_bef = self.get_document_embedding(primary_cv_enr)
             v_bef = self.get_document_embedding(primary_job_enr)
-            raw_bef = self.calculate_cosine_similarity(u_bef, v_bef)
-            cal_bef = self.calibrate_similarity_score(raw_bef)
-            before_pct = round(cal_bef * 100.0, 2)
+            before_pct = round(self.calculate_cosine_similarity(u_bef, v_bef) * 100.0, 2)
 
-        # Tokenize batch
         cv_texts = [p[0] for p in train_pairs]
         job_texts = [p[1] for p in train_pairs]
         targets = torch.tensor([p[2] for p in train_pairs], dtype=torch.float32, device=self.device)
@@ -990,10 +1143,23 @@ class MBERTMatchingService:
             job_texts, padding="max_length", truncation=True, max_length=max_seq_len, return_tensors="pt"
         ).to(self.device)
 
+        cv_bio = torch.tensor(
+            [self._encode_bio_labels(t, self.extract_entities_hybrid(t), max_seq_len) for t in cv_texts],
+            dtype=torch.long,
+            device=self.device,
+        )
+        job_bio = torch.tensor(
+            [self._encode_bio_labels(t, self.extract_entities_hybrid(t), max_seq_len) for t in job_texts],
+            dtype=torch.long,
+            device=self.device,
+        )
+        ce_loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
+
         optimizer = torch.optim.AdamW(
             [
-                {"params": self.model.mbert.encoder.layer[-1].parameters(), "lr": 3e-5},
-                {"params": self.model.projection.parameters(), "lr": 1e-3},
+                {"params": self.model.mbert.encoder.layer[-1].parameters(), "lr": 2e-5},
+                {"params": self.model.ner_head.parameters(), "lr": 2e-4},
+                {"params": self.model.projection.parameters(), "lr": 2e-4},
             ],
             weight_decay=0.01,
         )
@@ -1002,10 +1168,15 @@ class MBERTMatchingService:
         loss_history: List[float] = []
         for _ in range(epochs):
             optimizer.zero_grad()
-            cos_sim, _, _ = self.model(
-                cv_enc["input_ids"], cv_enc["attention_mask"], job_enc["input_ids"], job_enc["attention_mask"]
+            u, cv_ner_logits = self.model.encode_with_ner(cv_enc["input_ids"], cv_enc["attention_mask"])
+            v, job_ner_logits = self.model.encode_with_ner(job_enc["input_ids"], job_enc["attention_mask"])
+            cos_sim = F.cosine_similarity(u, v, dim=1)
+            loss_cos = F.mse_loss(cos_sim, targets) * 10.0
+            loss_ner = 0.5 * (
+                ce_loss_fn(cv_ner_logits.view(-1, len(NER_TAGS)), cv_bio.view(-1))
+                + ce_loss_fn(job_ner_logits.view(-1, len(NER_TAGS)), job_bio.view(-1))
             )
-            loss = F.mse_loss(cos_sim, targets)
+            loss = loss_cos + 0.20 * loss_ner
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             optimizer.step()
@@ -1015,7 +1186,6 @@ class MBERTMatchingService:
         for param in self.model.parameters():
             param.requires_grad = False
 
-        # Save updated checkpoint
         if self.fine_tuned_path:
             os.makedirs(os.path.dirname(self.fine_tuned_path), exist_ok=True)
             torch.save(self.model.state_dict(), self.fine_tuned_path)
@@ -1025,9 +1195,7 @@ class MBERTMatchingService:
         if primary_cv_enr and primary_job_enr:
             u_aft = self.get_document_embedding(primary_cv_enr)
             v_aft = self.get_document_embedding(primary_job_enr)
-            raw_aft = self.calculate_cosine_similarity(u_aft, v_aft)
-            cal_aft = self.calibrate_similarity_score(raw_aft)
-            after_pct = round(cal_aft * 100.0, 2)
+            after_pct = round(self.calculate_cosine_similarity(u_aft, v_aft) * 100.0, 2)
 
         elapsed = round(time.time() - t0, 2)
         return {

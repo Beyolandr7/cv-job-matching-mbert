@@ -1,0 +1,322 @@
+================================================================================
+CATATAN SIDANG & BIMBINGAN TUGAS AKHIR (TIPS PAK NJOTO)
+Topik: Sistem Pencocokan CV Pelamar dan Lowongan Pekerjaan Menggunakan
+       Deep Learning-Based NER, Multilingual BERT (mBERT), dan Cosine Similarity
+================================================================================
+
+--------------------------------------------------------------------------------
+PERTANYAAN 1: HYPERPARAMETER TUNING
+"Hyperparameter tuning menggunakan apa, caranya bagaimana, dan tujuannya apa?"
+--------------------------------------------------------------------------------
+
+A. MENGGUNAKAN APA? (TOOLS, ALGORITMA, & PARAMETER)
+1. Library / Framework : Optuna (optuna.create_study(direction="minimize"))
+2. Algoritma Sampler   : TPE (Tree-structured Parzen Estimator) Sampler
+                         dikombinasikan dengan Guided Trial Enqueueing agar
+                         keenam kandidat Learning Rate diuji secara eksplisit.
+3. Parameter yang Diuji (4 Hyperparameter Terpadu):
+   - Learning Rate     : [2e-5, 3e-5, 5e-5, 0.001, 0.005, 0.01]
+     * 3 angka dari paper asli BERT (Devlin et al., 2019): 2e-5, 3e-5, 5e-5
+     * 3 angka dari catatan kertas dosen                 : 0.001, 0.005, 0.01
+   - Max Length Token  : [128, 256, 512]
+   - Dropout Rate      : [0.1, 0.2, 0.3]
+   - Weight Decay      : [0.001, 0.01] (Optimizer AdamW - Loshchilov & Hutter, 2019)
+
+B. CARANYA BAGAIMANA? (MEKANISME STEP-BY-STEP)
+1. Pembagian Dataset Seimbang (1.500 baris: 500 Fit, 500 Close Fit, 500 Not Fit):
+   - Train Set (70%)      : 1.050 pasang (350 per kelas)
+   - Validation Set (15%) : 225 pasang (75 per kelas)
+   - Unseen Test Set (15%): 225 pasang (75 per kelas)
+2. Tahap 1 - Pencarian Kombinasi Terbaik di Optuna:
+   - Setiap trial melatih model pada Train Set menggunakan optimizer AdamW dan
+     Linear Warmup Scheduler (warmup_ratio = 0.1, batch_size = 16).
+   - Setiap trial dievaluasi pada Validation Set menggunakan metrik val_loss.
+   - Tuning dilakukan secara terpisah dan adil untuk Model Usulan (mBERT + Cosine
+     dengan PureCosineMarginLoss) dan Model Pembanding (mBERT Saja dengan
+     CrossEntropyLoss).
+   - Kombinasi Terbaik (Best Hyperparameters) yang Terpilih:
+     * Model 2 (Usulan: Unified NER + Siamese mBERT + Cosine):
+       Learning Rate = 2e-5 (0.00002), Max Length = 128, Dropout = 0.1,
+       Weight Decay = 0.01 (Proxy Val Loss = 0.0412, Val Acc = 96.44%)
+     * Model 1 (Pembanding: mBERT Saja tanpa Cosine):
+       Learning Rate = 0.001, Max Length = 128, Dropout = 0.2,
+       Weight Decay = 0.01 (Proxy Val Loss = 0.8770, Val Acc = 57.33%)
+3. Tahap 2 - Full Training dengan Early Stopping:
+   - Menggunakan Best Hyperparameters, model dilatih dengan konfigurasi:
+     Max Epoch = 100, Early Stopping Patience = 5, Monitoring = val_loss.
+   - Model Usulan (Model 2 - NER + Siamese mBERT + Cosine) mencapai val_loss
+     terbaik pada Epoch ke-5 (val_loss = 0.0365, val_acc = 98.22%; berhenti
+     otomatis pada Epoch ke-10).
+   - Model Pembanding (Model 1 - mBERT Saja) mencapai val_loss terbaik pada
+     Epoch ke-5 (val_loss = 0.7303, val_acc = 64.89%; berhenti di Epoch ke-10).
+
+C. TUJUANNYA APA?
+1. Mencegah Catastrophic Forgetting:
+   Arsitektur Transformer mBERT (12 layer, ~177 juta parameter) sudah dilatih
+   pada 104 bahasa. Learning rate besar (0.001 - 0.01) merusak bobot pre-trained
+   tersebut (val_loss mandek di 3.2429, val_acc 33.33%), sedangkan learning rate
+   kecil (2e-5) mengadaptasi ruang vektor mBERT secara halus dan stabil pada
+   gradien multi-task (Cosine + NER).
+2. Mencegah Overfitting & Menjamin Generalisasi Data Unseen:
+   Kombinasi dropout = 0.1, weight_decay = 0.01, dan Early Stopping (patience = 5)
+   mencegah model menghafal data latih sehingga mampu mencapai 99.11% Accuracy &
+   Macro F1 (99.13% Macro Precision) pada 225 data uji (Unseen Test Set).
+3. Optimasi Panjang Konteks Token (max_length = 128):
+   Karena entitas penting hasil NER sudah diletakkan di bagian paling awal teks
+   terstruktur, panjang 128 token memadatkan seluruh informasi kompetensi tanpa
+   padding noise atau pemborosan memori seperti pada 256 atau 512 token.
+
+
+--------------------------------------------------------------------------------
+PERTANYAAN 2: EXACT INPUT DAN EXACT OUTPUT MODEL mBERT
+"Apa exact input dan output yang dikeluarkan oleh model BERT yang digunakan?"
+--------------------------------------------------------------------------------
+
+Model dasar yang digunakan adalah "bert-base-multilingual-cased" pada 2 tahap:
+(1) Tahap Ekstraksi Entitas NER, dan (2) Tahap Ekstraksi Vektor Fitur Siamese,
+yang kemudian dihitung kemiripannya dengan sklearn.metrics.pairwise.cosine_similarity.
+
+TAHAP 1: MODEL NER (AutoModelForTokenClassification mBERT)
+- Tujuan       : Mengekstrak 5 entitas kompetensi (Tabel 2.5 Skripsi):
+                 EDU (Pendidikan), ORG (Organisasi), SKILL (Keahlian),
+                 ROLE (Jabatan), DUR (Durasi Pengalaman).
+- Exact Input  :
+  1. input_ids      : Tensor integer ukuran [batch_size, 128] (ID subword WordPiece)
+  2. attention_mask : Tensor biner ukuran [batch_size, 128] (1 = kata aktif, 0 = pad)
+- Exact Output :
+  1. Tensor logits ukuran [batch_size, 128, 11] (skor untuk 11 label BIO:
+     O, B-EDU, I-EDU, B-ORG, I-ORG, B-SKILL, I-SKILL, B-ROLE, I-ROLE, B-DUR, I-DUR).
+  2. Setelah di-decode (argmax + validasi kamus), menghasilkan daftar entitas:
+     EDU, ORG, SKILL, ROLE, dan DUR.
+
+TAHAP 2 (INTI): MODEL EKSTRAKTOR FITUR (SiameseMBERTCosineExtractor)
+Sesuai arahan dosen: "mBERT hanya untuk ekstraksi fitur saja; ambil embedding
+terakhir, kemudian baru hitung cosine yang pakai sklearn."
+
+- Exact Input ke SiameseMBERTCosineExtractor:
+  1. String Input (Teks yang sudah diawali Header Entitas NER):
+     Contoh CV  : "[DOC] CANDIDATE_CV | [DOMAIN] ACCOUNTANT | [TIER] CANDIDATE_PROFILE |
+                   [ROLE] Operations Supervisor | [SKILL] accounting, Payroll, budget |
+                   [EDU] Bachelor of Science: Finance | [DUR] 17 years total experience |
+                   [ORG] University of Nevada, Las Vegas || <teks asli CV>"
+     Contoh Job : "[DOC] JOB_POSTING | [DOMAIN] ACCOUNTANT | [TIER] CORE_DOMAIN_ROLE |
+                   [ROLE] Consumer Banking Operations Manager | ... || <teks lowongan>"
+  2. Tensor Numerik yang masuk ke jaringan mBERT (untuk CV dan Job secara terpisah):
+     * input_ids      : Tensor int64 ukuran [batch_size, 128]
+                        (berisi ID token WordPiece dari kosakata 119.547 token mBERT,
+                         diawali token [CLS]=101 dan diakhiri [SEP]=102).
+     * attention_mask : Tensor int64 ukuran [batch_size, 128]
+                        (berisi 1 untuk token nyata dan 0 untuk padding).
+
+- Proses Internal di dalam SiameseMBERTCosineExtractor:
+  1. 12-Layer Transformer mBERT mengeluarkan last_hidden_state ukuran [batch_size, 128, 768].
+  2. Hybrid Pooling menggabungkan vektor token [CLS] (ukuran [batch_size, 768])
+     dan NER-Guided Entity-Weighted Mean Pooling seluruh token aktif (ukuran [batch_size, 768]):
+     pooled = 0.5 * cls_emb + 0.5 * mean_emb  --> ukuran [batch_size, 768].
+  3. Linear Projection Head (nn.Linear(768, 768)) + L2 Normalization.
+
+- EXACT OUTPUT DARI MODEL mBERT (SiameseMBERTCosineExtractor):
+  * Vektor Embedding CV (u)       : Vektor float32 ukuran [1, 768] (panjang L2 = 1.0)
+  * Vektor Embedding Lowongan (v) : Vektor float32 ukuran [1, 768] (panjang L2 = 1.0)
+  * Prediksi Token NER (ner_logits): Tensor ukuran [1, 128, 11] dari lapisan
+    self.ner_head = nn.Linear(768, 11) yang mendeteksi 11 label BIO (EDU, ORG,
+    SKILL, ROLE, DUR) secara simetris pada CV maupun Job Description, sekaligus
+    memberikan bobot perhatian ekstra (NER-Guided Entity-Weighted Pooling) saat
+    membentuk vektor 768 dimensi u dan v.
+  (Catatan Penting: Untuk kecocokan CV-Job, model mBERT TIDAK mengeluarkan label
+   Fit/Close Fit/Not Fit secara langsung, melainkan mengeluarkan pasangan vektor
+   fitur 768 dimensi u dan v untuk dihitung dengan sklearn Cosine Similarity).
+
+TAHAP 3: PERHITUNGAN SKLEARN COSINE SIMILARITY & KEPUTUSAN KATEGORI
+- Exact Input ke Sklearn  : Dua vektor u (shape [1, 768]) dan v (shape [1, 768])
+                            dimasukkan ke fungsi:
+                            sklearn.metrics.pairwise.cosine_similarity(u, v)
+- Exact Output Akhir      :
+  1. Nilai Cosine Similarity : Float 0.0000 s/d 1.0000 (atau 0.00% s/d 100.00%)
+  2. Kategori Kecocokan (Sesuai Ambang Batas Proposal Skripsi):
+     * Fit       : Skor >= 80% (>= 0.80)
+     * Close Fit : Skor 60% - 79.9% (0.60 - 0.799)
+     * Not Fit   : Skor < 60% (< 0.60)
+
+
+--------------------------------------------------------------------------------
+PERTANYAAN 3: ALASAN PEMBAGIAN DATASET 70/30 (70% TRAIN : 15% VAL : 15% TEST)
+"Kenapa menggunakan pembagian data 70/30?"
+--------------------------------------------------------------------------------
+
+1. Kebutuhan Three-Way Split untuk Mencegah Data Leakage:
+   - Karena penelitian ini menggunakan Hyperparameter Tuning (Optuna) dan Early
+     Stopping (monitoring = val_loss), data evaluasi sebesar 30% (450 pasang)
+     harus dibagi dua sama rata menjadi:
+     * 15% Validation Set (225 pasang): Dipakai khusus untuk memilih hyperparameter
+       terbaik di Optuna dan memantau penurunan val_loss saat Early Stopping.
+     * 15% Unseen Test Set (225 pasang): Disimpan terpisah dan tidak pernah disentuh
+       selama pelatihan/tuning untuk menghasilkan Confusion Matrix & Classification
+       Report yang objektif.
+
+2. Keseimbangan Stratifikasi Bulat Sempurna (Exact Integer Stratification):
+   Dari total 1.500 pasang data seimbang (500 Fit, 500 Close Fit, 500 Not Fit),
+   rasio 70% : 15% : 15% menghasilkan jumlah sampel per kelas yang bulat sempurna:
+   - Train Set (70% = 1.050 pasang)      : 350 Fit | 350 Close Fit | 350 Not Fit
+   - Validation Set (15% = 225 pasang)   :  75 Fit |  75 Close Fit |  75 Not Fit
+   - Unseen Test Set (15% = 225 pasang)  :  75 Fit |  75 Close Fit |  75 Not Fit
+
+3. Kecukupan Statistik Lintas 6 Sektor Pekerjaan:
+   - 70% (1.050 pasang) sudah sangat memadai untuk melatih model Transfer Learning /
+     Fine-Tuning mBERT yang telah memiliki bobot pre-trained 104 bahasa.
+   - Jika menggunakan rasio 80/20 lalu dibagi dua (10% Val dan 10% Test), maka
+     setiap kelas di Validation/Test hanya tersisa 50 data (kurang dari 9 sampel
+     per sektor pekerjaan), sehingga kurva val_loss menjadi fluktuatif. Dengan
+     75 sampel per kelas (225 data), evaluasi di 6 sektor industri menjadi jauh
+     lebih stabil dan representatif secara statistik.
+
+
+--------------------------------------------------------------------------------
+PERTANYAAN 4: MENGAPA MENGGUNAKAN PRECISION, RECALL, DAN F1-SCORE SEBAGAI
+              EVALUASI? MENGAPA BUKAN ACCURACY SAJA & APAKAH ACCURACY PERLU?
+--------------------------------------------------------------------------------
+
+A. Mengapa Precision, Recall, dan F1-Score Wajib Digunakan pada CV-Job Matching?
+   Dalam sistem rekrutmen SDM (3 kelas: Fit, Close Fit, Not Fit), kesalahan
+   prediksi memiliki dua risiko bisnis berbeda yang tidak bisa dilihat jika
+   hanya memakai Accuracy:
+   1. Precision (TP / (TP + FP)) -> Mencegah False Positive (Salah Meloloskan):
+      Mengukur dari seluruh pelamar yang diprediksi "Fit", berapa persen yang
+      benar-benar "Fit". Jika Precision rendah, tim HR membuang waktu & biaya
+      untuk mewawancarai kandidat yang sebenarnya tidak cocok.
+   2. Recall (TP / (TP + FN)) -> Mencegah False Negative (Kehilangan Talenta):
+      Mengukur dari seluruh pelamar berkualitas yang melamar, berapa persen yang
+      berhasil dijaring oleh sistem. Jika Recall rendah, kandidat berbakat justru
+      terbuang ke "Not Fit".
+   3. F1-Score (Harmonic Mean dari Precision & Recall):
+      Menyeimbangkan Precision dan Recall secara adil di setiap kelas, terutama
+      untuk menguji ketajaman model pada kelas transisi "Close Fit" (60% - 79.9%)
+      yang paling sulit dipisahkan.
+
+B. Mengapa Accuracy Tidak Bisa Dijadikan Satu-Satunya Metrik Utama?
+   1. Menyembunyikan Kelemahan Spesifik per Kelas (Class-Specific Blindness):
+      Accuracy hanya menghitung total prediksi benar dibagi total data, tanpa
+      mempedulikan kelas mana yang gagal. Contohnya pada Model 3 (TF-IDF + Cosine),
+      Accuracy mencapai 33.33%, tetapi saat dicek F1-Score per kelasnya, kelas
+      "Close Fit" dan "Fit" gagal total (0.00% F1 karena seluruh skor TF-IDF
+      berada di bawah 60%).
+   2. Fenomena "Accuracy Paradox" di Dunia Nyata:
+      Di dunia nyata, distribusi pelamar hampir selalu timpang (misal 80% pelamar
+      Not Fit, 15% Close Fit, dan hanya 5% Fit). Model yang menebak semua pelamar
+      sebagai "Not Fit" akan mendapat Accuracy 80%, padahal F1-Score kelas "Fit"
+      adalah 0%.
+   3. Standar Evaluasi NLP & NER (Tabel 2.5 Skripsi):
+      Baik ekstraksi entitas NER (EDU, ORG, SKILL, ROLE, DUR) maupun klasifikasi
+      multi-kelas secara standar literatur ilmiah dievaluasi dengan Precision,
+      Recall, dan F1-Score.
+
+C. Pertimbangan & Rekomendasi: Apakah Accuracy Tetap Perlu Dipakai di Skripsi?
+   -> YA, ACCURACY SANGAT PERLU TETAP DICANTUMKAN BERSAMA PRECISION, RECALL, DAN
+      F1-SCORE! Alasannya:
+   1. Sesuai Permintaan Papan Tulis Pak Njoto:
+      - Poin 4 meminta grafik "train & val loss, train & val acc" (Accuracy).
+      - Poin 5, 6, 7 meminta "CM + CR" (Confusion Matrix + Classification Report
+        dari scikit-learn yang otomatis menampilkan Precision, Recall, F1-Score,
+        dan Accuracy sekaligus).
+   2. Dataset Uji Seimbang Sempurna (75 Fit : 75 Close Fit : 75 Not Fit):
+      Karena 225 Unseen Test Set berjumlah seimbang 1:1:1, nilai Accuracy (99.11%)
+      menjadi valid secara statistik dan selaras dengan Macro F1-Score (99.11%).
+   3. Kesimpulan Praktis untuk Naskah Skripsi:
+      Cantumkan keempat metrik tersebut secara lengkap:
+      - Accuracy (99.11%) untuk menunjukkan ketepatan global & grafik epoch.
+      - Macro Precision (99.13%), Macro Recall (99.11%), dan Macro F1-Score (99.11%)
+        untuk membuktikan ketajaman model di setiap kelas (Fit, Close Fit, Not Fit).
+
+
+--------------------------------------------------------------------------------
+RINGKASAN PERBANDINGAN PERFORMA 3 MODEL PADA DATA UJI (225 UNSEEN TEST SET)
+(Menggunakan Batas Ambang Skripsi: Fit >= 80%, Close Fit 60%-79.9%, Not Fit < 60%)
+--------------------------------------------------------------------------------
+1. Model 3 (Cosine Saja: TF-IDF + Sklearn Cosine, Tanpa mBERT) :
+   - Accuracy: 33.33% | Precision: 11.11% | Recall: 33.33% | Macro F1: 16.67%
+2. Model 1 (mBERT Saja Tanpa Cosine / Linear Classifier, MaxLen=128, LR=0.001) :
+   - Accuracy: 72.44% | Precision: 72.81% | Recall: 72.44% | Macro F1: 71.37%
+3. Model 2 (Usulan: Unified NER + Siamese mBERT + Sklearn Cosine - LR=2e-5, MaxLen=128) :
+   - Accuracy: 99.11% | Macro Precision: 99.13% | Macro Recall: 99.11% | Macro F1: 99.11%
+   - Detail per kelas: Not Fit F1 = 1.0000 | Close Fit F1 = 0.9865 | Fit F1 = 0.9868
+   - Simulasi Tabel 2.5 Indonesia (Cell 12): 96.77% (Fit) (PERFORMA TERTINGGI)
+================================================================================
+
+
+--------------------------------------------------------------------------------
+PERTANYAAN 5: MENGAPA DISEBUT SIAMESE mBERT, ARSITEKTUR, DAN PERSIAPAN PRE-TRAINING
+--------------------------------------------------------------------------------
+
+1. Mengapa Disebut "Siamese mBERT"?
+   - Model memiliki dua cabang input independen (CV dan Lowongan Kerja).
+   - Kedua cabang berbagi bobot model mBERT yang sama persis (Shared Weights).
+   - Memetakan teks CV dan Lowongan ke ruang koordinat vektor 768 dimensi yang
+     setara, sehingga derajat kemiripannya bisa dihitung menggunakan Cosine Similarity.
+   - Berbeda dengan BERT biasa (Cross-Encoder) yang menggabungkan teks jadi satu
+     lalu memakai classifier black-box tanpa menghasilkan vektor mandiri.
+
+2. Apa Arsitektur yang Kita Gunakan?
+   "Unified Multi-Task Siamese mBERT Feature Extractor with NER-Guided Pooling"
+   - Backbone     : Pre-trained bert-base-multilingual-cased (12 layer, 768-dim)
+   - NER Head     : nn.Linear(768, 11) untuk 11 label BIO (EDU, ORG, SKILL, ROLE, DUR)
+   - Pooling      : NER-Guided Entity-Weighted Pooling (bobot token entitas kompetensi
+                    diberi bobot lebih tinggi: mask * (1.0 + 0.5 * P(entity)))
+   - Proyeksi     : nn.Linear(768, 768) + Normalisasi L2 -> Vektor fitur 768-d (u dan v)
+   - Jarak        : sklearn.metrics.pairwise.cosine_similarity(u, v)
+
+3. Apa yang Dilakukan ke Model/Data Sebelum Dilakukan Training?
+   - Preprocessing Regex Cased: Menghilangkan noise URL/spasi tetapi MEMPERTAHANKAN
+     huruf kapital (Cased) agar mBERT dan NER tidak kehilangan informasi singkatan
+     gelar (S1, CPA, MBA) dan nama instansi (PT, Bank).
+   - Struktur Teks NER: Menambahkan header kompetensi [DOC] ... | [ROLE] ... |
+     [SKILL] ... || {teks} agar format layout CV yang acak menjadi seragam.
+   - WordPiece & BIO Offset Alignment: Menyelaraskan token subword mBERT dengan label
+     BIO token-level (-100 untuk token padding/spesial).
+   - Inisialisasi Matriks Identitas: Lapisan proyeksi diinisialisasi dengan nn.init.eye_
+     agar ruang semantik representasi bahasa mBERT pre-trained tidak rusak di awal epoch.
+
+4. Kenapa Cell Hyperparameter Tuning di Bawah Cell NER dan mBERT?
+   - Dependensi Kode: Fungsi objective Optuna membutuhkan blueprint kelas model
+     SiameseMBERTCosineExtractor (Cell 4). Jika ditaruh di atas, akan terjadi NameError.
+   - Dependensi Data: Optuna menguji variasi Max Length (128, 256, 512) yang dataset
+     token berlabel BIO-nya (CACHED_DATASETS_NER) baru dibuat di Cell 3.
+   - Alur Baku ML Pipeline: Data -> Feature/NER Prep -> Model Blueprint -> Tuning -> Training.
+
+5. Kenapa Pakai Loss Kustom PureCosineMarginLoss Bukan Default Loss mBERT?
+   - Default mBERT memakai CrossEntropyLoss untuk probabilitas softmax klasifikasi diskrit
+     (black-box logits), bukan untuk menata jarak embedding di ruang vektor 768 dimensi.
+   - Model kita adalah Siamese Feature Extractor yang dihitung dengan Cosine Similarity.
+   - PureCosineMarginLoss memandu langsung gradien sudut kosinus agar output kemiripan
+     terkalibrasi secara alami sesuai rubrik skripsi (<60%, 60%-79.9%, >=80%).
+
+6. Apa itu MSE Term dan Bagaimana Cara Menentukan Target Nilainya (0.90, 0.70, 0.15)?
+   - MSE Term adalah kuadrat selisih antara skor kosinus model dan target ideal kelas:
+     Loss_MSE = (cos(u, v) - target)^2 * scale_mse.
+   - Berfungsi sebagai "centroid attractor" (gaya tarik gravitasi halus) agar pasangan
+     teks berkumpul rapat di titik aman kelasnya.
+   - Penentuan Angka Target:
+     * Close Fit = 0.70: Titik tengah simetris sempurna (Midpoint = (0.60 + 0.80)/2 = 0.70)
+       dari rentang 60%-79.9%. Memberi jarak aman seimbang (+-10%) ke batas bawah dan atas.
+     * Fit = 0.90: Zona penyangga aman (Safety Buffer Zone +10%) di atas batas minimum 80%.
+       Jika diset tepat 80%, variansi alami membuat kandidat Fit jatuh ke Close Fit (<80%).
+       Jika diset 100%, memicu overfitting/gradient explosion karena teks tidak mungkin identik.
+     * Not Fit = 0.15: Sesuai sifat anisotropi alami kalimat acak pada representasi mBERT
+       (0.10-0.25). Nilai 0.15 berjarak 45% sangat jauh di bawah batas 60%, menjamin zero
+       false positives untuk kandidat yang tidak relevan.
+   - Sinergi dengan Band Penalty: MSE Term menarik secara halus ke pusat, sedangkan
+     Band Penalty (pen_fit, pen_close, pen_not) bertindak sebagai "tembok listrik" jika
+     skor menyeberang batas skripsi.
+
+7. Mengapa Hasil Hyperparameter Tuning Bergeser Saat Dijalankan Ulang?
+   - Gambar 1 (Model 2 tanpa multi-task loss): lr = 3e-5, max_length = 512.
+   - Gambar 2 (Model 2 usulan: multi-task NER + Cosine): lr = 2e-5, max_length = 128.
+   - Alasan 1 (Landscape Gradien Multi-task): Penggabungan loss token BIO dan Cosine Loss
+     membuat gradien backprop lebih padat dan sensitif, sehingga model membutuhkan lr yang
+     lebih kecil/halus (2e-5) agar stabil.
+   - Alasan 2 (Kepadatan Entitas): Informasi kompetensi utama terpusat di 128 token pertama.
+     Max length 128 memangkas padding kosong dan mempercepat konvergensi pada proxy 3 epoch.
+   - Alasan 3 (Stokastisitas Tuning): Selisih akurasi validasi sangat tipis (>92% vs >96%),
+     dan keduanya sama-sama masuk dalam rentang baku rekomendasi Devlin et al. (2019).
+================================================================================
+
+

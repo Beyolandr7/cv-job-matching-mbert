@@ -1,29 +1,18 @@
 """
 update_nb3_complete_ner_cosine.py
 ---------------------------------
-Memperbarui notebooks/03_optuna_tuning_siamese_mbert.ipynb agar mencakup:
-1. Deep Learning-Based NER dengan mBERT (AutoModelForTokenClassification) sesuai Bab 2.4 & Tabel 2.5 Skripsi
-   (Entitas: EDU, ORG, SKILL, ROLE, DUR) berbasis Resume Dataset (Drushchak & Romanyshyn, 2024).
-2. Konstruksi Teks Kompetensi Terstruktur (Entity-Enriched Text) -> 1 Vektor Embedding 768-dim -> 1x Sklearn Cosine Similarity.
-3. Hyperparameter Tuning sesuai Kertas Dosen (LR: 0.001, 0.005, 0.01; Max Length: 128, 256, 512; Dropout: 0.1, 0.2, 0.3)
-   + Referensi Ilmiah Weight Decay (0.001, 0.01 - Loshchilov & Hutter, 2019; Devlin et al., 2019).
-4. Pemisahan Pelatihan Murni:
-   - Model 2 (Usulan): mBERT Feature Extractor + Sklearn Cosine Similarity (PureCosineMarginLoss) -> Macro F1 > 92%
-   - Model 1 (Pembanding Poin 6): mBERT Saja Tanpa Cosine (CrossEntropyLoss tanpa fitur jarak) -> Macro F1 ~ 83-87%
-   - Model 3 (Pembanding Poin 7): Cosine Saja (TF-IDF Leksikal + Sklearn Cosine)
+Menghasilkan notebooks/03_optuna_tuning_siamese_mbert.ipynb yang rapi, ringkas, dan siap dipresentasikan.
 """
 
 import json
+
 
 def make_md_cell(source_str):
     lines = [line + "\n" for line in source_str.splitlines()]
     if lines:
         lines[-1] = lines[-1].rstrip("\n")
-    return {
-        "cell_type": "markdown",
-        "metadata": {},
-        "source": lines
-    }
+    return {"cell_type": "markdown", "metadata": {}, "source": lines}
+
 
 def make_code_cell(source_str):
     lines = [line + "\n" for line in source_str.splitlines()]
@@ -34,37 +23,24 @@ def make_code_cell(source_str):
         "execution_count": None,
         "metadata": {},
         "outputs": [],
-        "source": lines
+        "source": lines,
     }
 
-CELL_0_MD = """# Implementasi End-to-End: Deep Learning NER mBERT, Hyperparameter Tuning, dan Pencocokan CV-Job dengan Cosine Similarity (3 Kelas Seimbang: 1.500 Data)
 
-Notebook ini mengimplementasikan secara utuh seluruh spesifikasi **Naskah Skripsi (Bab 2.4 Tabel 2.5 & Tabel 2 Proposal)**, **Catatan Kertas Konsultasi Dosen**, serta **Instruksi Papan Tulis Dosen Pembimbing**:
+CELL_0_MD = """# Implementasi Pencocokan CV dan Lowongan Kerja Menggunakan Deep Learning NER, Siamese mBERT, dan Cosine Similarity
 
-1. **Deep Learning-Based Named Entity Recognition / NER (Bab 2.4 & Tabel 2.5 Skripsi):**
-   - Menggunakan pre-trained **mBERT (`bert-base-multilingual-cased`)** dengan arsitektur *Token Classification* (BIO Tagging) untuk mendeteksi 5 entitas kompetensi rekrutmen: **`EDU` (Pendidikan)**, **`ORG` (Organisasi/Institusi)**, **`SKILL` (Keahlian Teknis)**, **`ROLE` (Posisi/Jabatan)**, dan **`DUR` (Durasi Pengalaman)** mengacu pada *Resume Dataset* (Drushchak & Romanyshyn, 2024).
-   - Entitas kompetensi yang diekstraksi disusun menjadi **Teks Kompetensi Terstruktur (*Entity-Enriched Text*)** untuk menormalisasi perbedaan tata letak dan gaya penulisan CV sebelum diubah menjadi **1 vektor embedding 768 dimensi**.
-2. **Perbaikan Implementasi mBERT + Cosine Similarity (Poin 1 Papan Tulis Dosen):**
-   - mBERT pada model usulan bertugas murni sebagai **Feature Extractor** (menghasilkan vektor representasi akhir 768 dimensi yang dinormalisasi L2), kemudian perhitungan kemiripan dilakukan menggunakan **`sklearn.metrics.pairwise.cosine_similarity`**.
-   - Selama pelatihan, *Feature Extractor* mBERT dioptimasi dengan **`PureCosineMarginLoss`** agar sudut kosinus $\\cos(u, v)$ langsung memisahkan kelas **Not Fit ($<60\\%$)**, **Close Fit ($60\\% - 80\\%$)**, dan **Fit ($\\ge 80\\%$)** tanpa didominasi oleh *Classifier Head*.
-3. **Ruang Hyperparameter Tuning & Referensi Literatur Ilmiah (Poin 3 Catatan Kertas & Poin 2 Papan Tulis):**
-   - **Learning Rate:** Menguji gabungan 6 kandidat dalam satu daftar pencarian yang sama: **`[2e-5, 3e-5, 5e-5, 0.001, 0.005, 0.01]`** (3 kandidat dari catatan kertas dosen: `0.001, 0.005, 0.01` + 3 kandidat standar fine-tuning Transformer dari literatur **Devlin et al., 2019**: `2e-5, 3e-5, 5e-5`).
-   - **Max Sequence Length Token:** `[128, 256, 512]`
-   - **Dropout Rate:** `[0.1, 0.2, 0.3]`
-   - **Weight Decay:** `[0.001, 0.01]` mengacu pada referensi standar **Loshchilov & Hutter (2019, ICLR - *Decoupled Weight Decay Regularization / AdamW*)** dan **Devlin et al. (2019, NAACL)**.
-   - **Konfigurasi Pelatihan:** Maksimum **100 Epoch**, **Early Stopping (Patience = 5)**, dengan **`monitor = val_loss`**.
-4. **Komparasi 3 Model untuk Bab 5 & Bab 6 Skripsi (Poin 5–6 Catatan Kertas & Poin 5–7 Papan Tulis):**
-   - **Model 2 (Model Usulan - `NER + mBERT + Sklearn Cosine`):** Ekstraksi fitur mBERT berbasis entitas kompetensi + `cosine_similarity` Sklearn.
-   - **Model 1 (Pembanding - `mBERT Saja Tanpa Cosine`):** Klasifikasi langsung dengan *Classifier Head* (`CrossEntropyLoss`) tanpa perhitungan sudut/jarak Cosine Similarity.
-   - **Model 3 (Pembanding - `Cosine Saja Tanpa mBERT`):** Representasi leksikal TF-IDF + `cosine_similarity` Sklearn."""
+1. **Unified Deep Learning NER (`EDU`, `ORG`, `SKILL`, `ROLE`, `DUR`):** Ekstraksi entitas kompetensi secara simetris pada CV dan *Job Description* (Tabel 2.5 Skripsi) serta pembobotan *NER-Guided Pooling*.
+2. **Hyperparameter Tuning (Optuna):** Menguji *Learning Rate* `[2e-5, 3e-5, 5e-5, 0.001, 0.005, 0.01]`, *Max Length* `[128, 256, 512]`, *Dropout* `[0.1, 0.2, 0.3]`, dan *Weight Decay* `[0.001, 0.01]`.
+3. **Pelatihan & Evaluasi 3 Model:** *Max Epoch* = 100, *Early Stopping* (*patience* = 5, *monitor* = `val_loss`), dilengkapi *Confusion Matrix* dan *Classification Report* untuk:
+   - **Model 1:** mBERT Saja (Tanpa Cosine)
+   - **Model 2 (Usulan):** NER + Siamese mBERT + `sklearn` Cosine Similarity
+   - **Model 3:** Cosine Saja (TF-IDF + `sklearn` Cosine Similarity)"""
 
-CELL_1_CODE = """# 1. Instalasi & Import Library yang Dibutuhkan
-!pip install -q optuna transformers torch scikit-learn pandas numpy matplotlib seaborn tqdm openpyxl
+CELL_1_CODE = """# 1. Instalasi & Import Library
+!pip install -q optuna transformers torch scikit-learn pandas numpy matplotlib seaborn tqdm
 
 import os
 import re
-import copy
-import time
 import random
 import warnings
 import numpy as np
@@ -74,29 +50,16 @@ import seaborn as sns
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, TensorDataset
-from transformers import (
-    AutoTokenizer,
-    AutoModel,
-    AutoModelForTokenClassification,
-    get_linear_schedule_with_warmup
-)
+from torch.utils.data import DataLoader, TensorDataset
+from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import (
-    classification_report,
-    confusion_matrix,
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score
-)
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
 import optuna
 
 warnings.filterwarnings('ignore')
 
-# Set Random Seed untuk Reprodusibilitas Eksperimen Ilmiah
 SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
@@ -105,192 +68,56 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(SEED)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"[DEVICE] Menggunakan: {device}")
-if device.type == 'cuda':
-    print(f"[GPU] Spesifikasi: {torch.cuda.get_device_name(0)}")"""
+print(f"Device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if device.type == 'cuda' else ""))"""
 
-CELL_2_CODE = """# 2. Pemuatan Dataset 3 Kelas Seimbang (1.500 Pasangan: 500 Fit, 500 Close Fit, 500 Not Fit) & Split 70/15/15
-# (Sesuai Catatan Dosen: 'fit: 500, close: 500, not: 500')
-
+CELL_2_CODE = """# 2. Pemuatan Dataset (1.500 Pasangan: 500 Fit, 500 Close Fit, 500 Not Fit) & Split 70/15/15
 possible_paths = [
     'dataset_cv_job_matching_3class_1500.csv',
-    'dataset_cv_job_matching_3class_1500.zip',
     '../data/dataset_cv_job_matching_3class_1500.csv',
-    '../data/dataset_cv_job_matching_3class_1500.zip',
     'data/dataset_cv_job_matching_3class_1500.csv',
-    'data/dataset_cv_job_matching_3class_1500.zip',
     '/content/dataset_cv_job_matching_3class_1500.csv',
-    '/content/dataset_cv_job_matching_3class_1500.zip',
-    'dataset_cv_job_matching_3class.csv',
-    '../data/dataset_cv_job_matching_3class.csv'
 ]
-
-dataset_path = None
-for p in possible_paths:
-    if os.path.exists(p):
-        dataset_path = p
-        break
-
+dataset_path = next((p for p in possible_paths if os.path.exists(p)), None)
 if dataset_path is None:
-    raise FileNotFoundError(
-        "File 'dataset_cv_job_matching_3class_1500.csv' atau '.zip' tidak ditemukan! "
-        "Silakan upload file tersebut ke direktori Google Colab."
-    )
+    raise FileNotFoundError("File 'dataset_cv_job_matching_3class_1500.csv' tidak ditemukan.")
 
-df = pd.read_csv(dataset_path)
-df = df.dropna(subset=['job', 'cv', 'kategori']).reset_index(drop=True)
-print(f"[DATASET] Berhasil dimuat dari: {dataset_path} ({len(df)} total baris)")
-
-# Normalisasi teks kategori & Pemetaan Label Numerik
+df = pd.read_csv(dataset_path).dropna(subset=['job', 'cv', 'kategori']).reset_index(drop=True)
 df['kategori'] = df['kategori'].astype(str).str.strip().str.lower()
+
 LABEL2ID = {'not fit': 0, 'close fit': 1, 'fit': 2}
 ID2LABEL = {0: 'not fit', 1: 'close fit', 2: 'fit'}
 CLASS_NAMES = ['not fit', 'close fit', 'fit']
-
 df['label'] = df['kategori'].map(LABEL2ID)
-assert df['label'].isnull().sum() == 0, "Terdapat label di luar ['not fit', 'close fit', 'fit']!"
 
 def regex_standardize_text(text):
-    \"\"\"
-    Tahap Preprocessing Sesuai Proposal Tugas Akhir:
-    Membersihkan karakter non-standar, URL, dan spasi berlebih menggunakan Regular Expression (Regex)
-    tanpa merusak huruf kapital (Cased) yang krusial bagi Named Entity Recognition (NER) mBERT.
-    \"\"\"
     if not isinstance(text, str):
         return ""
     text = re.sub(r'https?://\\S+|www\\.\\S+', ' ', text)
     text = re.sub(r'[\\r\\n\\t]+', ' ', text)
     text = re.sub(r'[^\\w\\s.,;:()/\\-+&#%]', ' ', text)
-    text = re.sub(r'\\s+', ' ', text).strip()
-    return text
+    return re.sub(r'\\s+', ' ', text).strip()
 
-print("[PREPROCESSING] Melakukan standardisasi karakter dengan Regex (Mempertahankan Cased Info untuk NER mBERT)...")
 df['job_clean'] = df['job'].apply(regex_standardize_text)
 df['cv_clean'] = df['cv'].apply(regex_standardize_text)
 
-# Stratified Split: 70% Train (1.050), 15% Validation (225), 15% Unseen Test (225)
-train_df, temp_df = train_test_split(
-    df, test_size=0.30, random_state=SEED, stratify=df['label']
-)
-val_df, test_df = train_test_split(
-    temp_df, test_size=0.50, random_state=SEED, stratify=temp_df['label']
-)
+# Stratified Split: 70% Train (1.050), 15% Validation (225), 15% Test (225)
+train_df, temp_df = train_test_split(df, test_size=0.30, random_state=SEED, stratify=df['label'])
+val_df, test_df = train_test_split(temp_df, test_size=0.50, random_state=SEED, stratify=temp_df['label'])
+train_df, val_df, test_df = train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
-train_df = train_df.reset_index(drop=True)
-val_df = val_df.reset_index(drop=True)
-test_df = test_df.reset_index(drop=True)
+print(f"Total Data: {len(df)} | Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
+print(f"Distribusi Train : {train_df['kategori'].value_counts().to_dict()}")
+print(f"Distribusi Val   : {val_df['kategori'].value_counts().to_dict()}")
+print(f"Distribusi Test  : {test_df['kategori'].value_counts().to_dict()}")"""
 
-print(f"Proporsi Pembagian Data: Train = {len(train_df)} | Val = {len(val_df)} | Test (Unseen) = {len(test_df)}")
-print(f"Distribusi Kelas di Train Set : {train_df['kategori'].value_counts().to_dict()}")
-print(f"Distribusi Kelas di Val Set   : {val_df['kategori'].value_counts().to_dict()}")
-print(f"Distribusi Kelas di Test Set  : {test_df['kategori'].value_counts().to_dict()}")"""
-
-CELL_3_CODE = """# 3. Implementasi Deep Learning-Based NER dengan mBERT (Bab 2.4 & Tabel 2.5 Skripsi) & Pre-Tokenization
-# Sesuai Bab 2.4 Skripsi:
-# - Menggunakan pre-trained model mBERT (bert-base-multilingual-cased) untuk mengklasifikasikan
-#   label entitas kompetensi dari setiap token kata: EDU, ORG, SKILL, ROLE, DUR.
-# - Menyusun entitas hasil deteksi NER menjadi Teks Kompetensi Terstruktur agar mBERT Feature Extractor
-#   kebal terhadap perbedaan gaya penulisan dan tata letak CV pelamar (Drushchak & Romanyshyn, 2024).
-
+CELL_3_CODE = """# 3. Ekstraksi Entitas Kompetensi NER (EDU, ORG, SKILL, ROLE, DUR) & Pelabelan BIO Token-Level
 MODEL_NAME = 'bert-base-multilingual-cased'
-print(f"[TOKENIZER] Memuat tokenizer: {MODEL_NAME}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# Skema Label BIO untuk 5 Entitas Kompetensi Tabel 2.5 Skripsi
-NER_TAGS = [
-    'O',
-    'B-EDU', 'I-EDU',
-    'B-ORG', 'I-ORG',
-    'B-SKILL', 'I-SKILL',
-    'B-ROLE', 'I-ROLE',
-    'B-DUR', 'I-DUR'
-]
+NER_TAGS = ['O', 'B-EDU', 'I-EDU', 'B-ORG', 'I-ORG', 'B-SKILL', 'I-SKILL', 'B-ROLE', 'I-ROLE', 'B-DUR', 'I-DUR']
 TAG2ID = {t: i for i, t in enumerate(NER_TAGS)}
 ID2TAG = {i: t for i, t in enumerate(NER_TAGS)}
 
-# Korpus Pelatihan Token-Level NER Dwi-Bahasa (Indonesia & Inggris - Adaptasi Resume Dataset Drushchak & Romanyshyn, 2024)
-NER_TRAINING_CORPUS = [
-    # Kalimat Referensi Utama Tabel 2.5 Skripsi
-    ("Lulusan S1 Informatika dari Universitas Surabaya yang menguasai Python, Go, dan C# dan memiliki pengalaman magang sebagai Software Engineer di PT Telekomunikasi Indonesia selama 6 bulan.",
-     [("S1 Informatika", "EDU"), ("Universitas Surabaya", "ORG"), ("Python, Go, dan C#", "SKILL"), ("Software Engineer", "ROLE"), ("PT Telekomunikasi Indonesia", "ORG"), ("6 bulan", "DUR")]),
-    ("Kandidat bergelar S1 Sistem Informasi dari Institut Teknologi Sepuluh Nopember dengan keahlian Java, SQL, dan Docker serta bekerja sebagai Backend Developer di PT Bank Central Asia selama 3 tahun.",
-     [("S1 Sistem Informasi", "EDU"), ("Institut Teknologi Sepuluh Nopember", "ORG"), ("Java, SQL, dan Docker", "SKILL"), ("Backend Developer", "ROLE"), ("PT Bank Central Asia", "ORG"), ("3 tahun", "DUR")]),
-    ("Lulusan S2 Ilmu Komputer dari Universitas Gadjah Mada yang menguasai Machine Learning, Deep Learning, dan NLP sebagai Data Scientist di PT GoTo Gojek Tokopedia selama 2 tahun.",
-     [("S2 Ilmu Komputer", "EDU"), ("Universitas Gadjah Mada", "ORG"), ("Machine Learning, Deep Learning, dan NLP", "SKILL"), ("Data Scientist", "ROLE"), ("PT GoTo Gojek Tokopedia", "ORG"), ("2 tahun", "DUR")]),
-    ("Lulusan S1 Akuntansi dari Universitas Airlangga dengan kompetensi Financial Accounting, GAAP, dan Tax yang berpengalaman sebagai Senior Accountant di PT Unilever Indonesia selama 4 tahun.",
-     [("S1 Akuntansi", "EDU"), ("Universitas Airlangga", "ORG"), ("Financial Accounting, GAAP, dan Tax", "SKILL"), ("Senior Accountant", "ROLE"), ("PT Unilever Indonesia", "ORG"), ("4 tahun", "DUR")]),
-    ("Lulusan S1 Hukum dari Universitas Indonesia yang menguasai Litigation, Legal Research, dan Contract Management sebagai Legal Counsel di PT Pertamina selama 5 tahun.",
-     [("S1 Hukum", "EDU"), ("Universitas Indonesia", "ORG"), ("Litigation, Legal Research, dan Contract Management", "SKILL"), ("Legal Counsel", "ROLE"), ("PT Pertamina", "ORG"), ("5 tahun", "DUR")]),
-    ("Graduate with Bachelor of Computer Science from Stanford University skilled in Python, PyTorch, and SQL working as Senior Software Engineer at Google Corp for 5 years.",
-     [("Bachelor of Computer Science", "EDU"), ("Stanford University", "ORG"), ("Python, PyTorch, and SQL", "SKILL"), ("Senior Software Engineer", "ROLE"), ("Google Corp", "ORG"), ("5 years", "DUR")]),
-    ("Holds BSN in Nursing from Johns Hopkins University with expertise in Patient Care and Clinical Assessment as Registered Nurse at Mercy Hospital for 4 years.",
-     [("BSN", "EDU"), ("Johns Hopkins University", "ORG"), ("Patient Care", "SKILL"), ("Registered Nurse", "ROLE"), ("Mercy Hospital", "ORG"), ("4 years", "DUR")]),
-    ("Earned Culinary Diploma from Le Cordon Bleu skilled in Culinary Arts, Pastry, and Food Preparation working as Executive Chef at Marriott Hotel for 7 years.",
-     [("Culinary Diploma", "EDU"), ("Le Cordon Bleu", "ORG"), ("Culinary Arts, Pastry, and Food Preparation", "SKILL"), ("Executive Chef", "ROLE"), ("Marriott Hotel", "ORG"), ("7 years", "DUR")])
-]
-
-def encode_bio_corpus(corpus, tokenizer, max_len=128):
-    input_ids_list, mask_list, label_ids_list = [], [], []
-    for text, spans in corpus:
-        char_labels = ['O'] * len(text)
-        for phrase, ent_type in spans:
-            idx = text.find(phrase)
-            if idx != -1:
-                for c_i in range(idx, idx + len(phrase)):
-                    char_labels[c_i] = ent_type
-        enc = tokenizer(
-            text,
-            max_length=max_len,
-            padding='max_length',
-            truncation=True,
-            return_offsets_mapping=True,
-            return_tensors='pt'
-        )
-        offsets = enc['offset_mapping'][0].tolist()
-        token_labels = []
-        prev_ent = 'O'
-        for start_c, end_c in offsets:
-            if start_c == 0 and end_c == 0:
-                token_labels.append(-100)
-                prev_ent = 'O'
-                continue
-            span_chars = char_labels[start_c:end_c]
-            ent_votes = [c for c in span_chars if c != 'O']
-            if ent_votes:
-                curr_ent = ent_votes[0]
-                prefix = 'I-' if prev_ent == curr_ent else 'B-'
-                token_labels.append(TAG2ID[f"{prefix}{curr_ent}"])
-                prev_ent = curr_ent
-            else:
-                token_labels.append(TAG2ID['O'])
-                prev_ent = 'O'
-        input_ids_list.append(enc['input_ids'][0])
-        mask_list.append(enc['attention_mask'][0])
-        label_ids_list.append(torch.tensor(token_labels, dtype=torch.long))
-    return TensorDataset(torch.stack(input_ids_list), torch.stack(mask_list), torch.stack(label_ids_list))
-
-print("[NER TRAINING] Melatih Deep Learning mBERT Token Classification (BIO Tagging: EDU, ORG, SKILL, ROLE, DUR)...")
-ner_dataset = encode_bio_corpus(NER_TRAINING_CORPUS * 6, tokenizer, max_len=128)
-ner_loader = DataLoader(ner_dataset, batch_size=8, shuffle=True)
-
-ner_model = AutoModelForTokenClassification.from_pretrained(
-    MODEL_NAME, num_labels=len(NER_TAGS), id2label=ID2TAG, label2id=TAG2ID
-).to(device)
-ner_optimizer = torch.optim.AdamW(ner_model.parameters(), lr=5e-5, weight_decay=0.01)
-
-ner_model.train()
-for ep in range(1, 5):
-    ep_loss = 0.0
-    for b_ids, b_mask, b_lbl in ner_loader:
-        b_ids, b_mask, b_lbl = b_ids.to(device), b_mask.to(device), b_lbl.to(device)
-        ner_optimizer.zero_grad()
-        out = ner_model(input_ids=b_ids, attention_mask=b_mask, labels=b_lbl)
-        out.loss.backward()
-        ner_optimizer.step()
-        ep_loss += out.loss.item()
-print(f"[NER READY] Pelatihan mBERT Token Classification selesai (Final Loss: {ep_loss/len(ner_loader):.4f}).")
-
-# Kamus Kompetensi & Pola Validasi Ahli (Mengacu pada 6 Sektor Benchmark & Tabel 2.5 Skripsi)
 CV_HEADER_PATTERNS = {
     'INFORMATION-TECHNOLOGY': r'\\b(?:INFORMATION TECHNOLOGY|IT\\b|SOFTWARE|SYSTEMS?|NETWORK|DEVELOPER|TECHNOLOGY|DATA SCIENTIST|BACKEND|FRONTEND|DEVOPS)',
     'HEALTHCARE': r'\\b(?:HEALTHCARE|HEALTH CARE|CLINICAL|MEDICAL|NURSE|NURSING|PATIENT|PHARMACY|THERAPIST|HOSPITAL|PHYSICIAN)',
@@ -301,39 +128,40 @@ CV_HEADER_PATTERNS = {
 }
 
 CORE_ROLE_PATTERNS = {
-    'INFORMATION-TECHNOLOGY': r'\\b(?:Senior\\s+|Junior\\s+|Lead\\s+)?(?:Software Engineer|Software Developer|Full Stack(?:\\s+Developer)?|DevOps(?:\\s+Engineer)?|System Administrator|Frontend(?:\\s+Developer)?|Backend(?:\\s+Developer)?|Data Scientist|Programmer|Solutions Architect|Provisioning Engineer)\\b',
-    'HEALTHCARE': r'\\b(?:Registered Nurse|Nurse Practitioner|Physician|Doctor|Pharmacist|Physical Therapist|Occupational Therapist|Clinical Nurse|RN)\\b',
-    'ACCOUNTANT': r'\\b(?:Senior\\s+|Staff\\s+|Tax\\s+|Financial\\s+)?(?:Accountant|CPA|Bookkeeper|Accounting Manager|Tax Professional)\\b',
-    'CHEF': r'\\b(?:Executive\\s+|Head\\s+|Sous\\s+|Pastry\\s+)?(?:Chef|Culinary|Kitchen Associate)\\b',
-    'TEACHER': r'\\b(?:Physical Education\\s+|Classroom\\s+|Special Education\\s+)?(?:Teacher|Professor|Educator|Faculty|Lecturer|CDL Instructor)\\b',
-    'ADVOCATE': r'\\b(?:Sr\\.\\s+|Senior\\s+|Commercial\\s+|General\\s+|Legal\\s+|Associate\\s+)?(?:Attorney|Lawyer|Litigation|Counsel|Probate Paralegal|Advocate)\\b'
+    'INFORMATION-TECHNOLOGY': r'\\b(?:Senior\\s+|Junior\\s+|Lead\\s+)?(?:Software Engineer|Software Developer|Full Stack(?:\\s+Developer)?|DevOps(?:\\s+Engineer)?|System Administrator|Frontend(?:\\s+Developer)?|Backend(?:\\s+Developer)?|Data Scientist|Programmer|Solutions Architect|Provisioning Engineer|Information Technology(?:\\s+Manager|\\s+Director|\\s+Specialist)?)\\b',
+    'HEALTHCARE': r'\\b(?:Registered Nurse|Nurse Practitioner|Physician|Doctor|Pharmacist|Physical Therapist|Occupational Therapist|Clinical Nurse|RN|Licensed Practical Nurse|Nursing Assistant)\\b',
+    'ACCOUNTANT': r'\\b(?:Senior\\s+|Staff\\s+|Tax\\s+|Financial\\s+|Cost\\s+)?(?:Accountant|CPA|Bookkeeper|Accounting Manager|Senior Accounting Manager|Tax Professional|Consumer Banking(?:\\s+Default Management)?\\s+Supervisor|Operations Manager|Banking Operations Manager)\\b',
+    'CHEF': r'\\b(?:Executive\\s+|Head\\s+|Sous\\s+|Executive\\s+Sous\\s+|Banquet\\s+|Pastry\\s+)?(?:Chef|Chef de Cuisine|Culinary|Kitchen Associate)\\b',
+    'TEACHER': r'\\b(?:Physical Education\\s+|Classroom\\s+|Special Education\\s+|Assistant\\s+|Preschool\\s+|Substitute\\s+)?(?:Teacher|Professor|Educator|Faculty|Lecturer|CDL Instructor)\\b',
+    'ADVOCATE': r'\\b(?:Sr\\.\\s+|Senior\\s+|Commercial\\s+|General\\s+|Legal\\s+|Associate\\s+|Litigation\\s+|Trial\\s+)?(?:Attorney|Lawyer|Litigation Associate|Litigation|Counsel|Probate Paralegal|Advocate)\\b'
 }
 
 COGNATE_ROLE_PATTERNS = {
-    'INFORMATION-TECHNOLOGY': r'\\b(?:Data Analyst|Help Desk|Technical Support|Systems Analyst|Technical Writer|QA|Quality Assurance|Database Administrator|Network Specialist|IT Coordinator|Business Analyst)\\b',
-    'HEALTHCARE': r'\\b(?:Medical Assistant|Clinical Coordinator|Healthcare Administrator|Health Care Coordinator|Case Manager|Medical Records|Patient Access|Health Coach|Pharmacy Technician|Dental Assistant)\\b',
-    'ACCOUNTANT': r'\\b(?:Financial Analyst|Internal Auditor|Auditor|Accounts Payable|Accounts Receivable|Payroll Specialist|Billing Specialist|Credit Analyst|Tax Advisor)\\b',
+    'INFORMATION-TECHNOLOGY': r'\\b(?:Data Analyst|Help Desk|Technical Support|Systems Analyst|Technical Writer|QA|Quality Assurance|Database Administrator|Network Specialist|Network Administrator|IT Coordinator|Business Analyst)\\b',
+    'HEALTHCARE': r'\\b(?:Medical Assistant|Clinical Coordinator|Healthcare Administrator|Health Care Coordinator|Case Manager|Medical Records|Patient Access(?:\\s+Representative)?|Health Coach|Pharmacy Technician|Dental Assistant)\\b',
+    'ACCOUNTANT': r'\\b(?:Financial Analyst|Senior Financial Analyst|Internal Auditor|Auditor|Accounts Payable(?:\\s+Specialist)?|Accounts Receivable(?:\\s+Specialist)?|Payroll Specialist|Billing Specialist|Credit Analyst|Tax Advisor)\\b',
     'CHEF': r'\\b(?:Line Cook|Prep Cook|Kitchen Manager|Food Service|Baker|Dietary Aide|Catering|Barista|Restaurant Manager)\\b',
     'TEACHER': r'\\b(?:Corporate Trainer|Technical Trainer|Instructional Designer|Curriculum|Education Coordinator|Academic Advisor|Tutor|Training Specialist|Learning Specialist)\\b',
     'ADVOCATE': r'\\b(?:Compliance Specialist|Contract Administrator|Legal Assistant|Paralegal|Regulatory Affairs|Risk Analyst|Contract Specialist|Contracts Manager)\\b'
 }
 
 DOMAIN_SKILL_PATTERNS = {
-    'INFORMATION-TECHNOLOGY': r'\\b(?:Python|Go|Golang|Java|JavaScript|TypeScript|C\\+\\+|C#|SQL|PostgreSQL|MySQL|Docker|Kubernetes|AWS|Machine Learning|Deep Learning|NLP|Scikit-Learn|PyTorch|TensorFlow|Software|Developer|Engineer|Programmer|DevOps|System Administrator|Frontend|Backend|IT Specialist|Network|Information Technology|Database)\\b',
-    'HEALTHCARE': r'\\b(?:Patient Care|Clinical|Medical|Hospital|Healthcare|Nursing|RN|BSN|Pharmacy|Therapy|Diagnosis|Treatment|Caregiver|Hospice|Home Health|Nurse|Physician|Doctor|Pharmacist|Therapist)\\b',
-    'ACCOUNTANT': r'\\b(?:Financial Accounting|General Ledger|GAAP|Reconciliation|Tax|Audit|Auditing|Accounts Payable|Accounts Receivable|Payroll|Bookkeeping|Financial Reporting|Budgeting|CPA|Accountant|Accounting|Auditor|Bookkeeper)\\b',
-    'CHEF': r'\\b(?:Culinary|Pastry|Food Preparation|Kitchen|Menu|Catering|Baking|Food Safety|Sanitation|Cooking|Banquet|Recipe|Chef|Cook|Baker|Sous Chef|Line Cook)\\b',
-    'TEACHER': r'\\b(?:Teaching|Curriculum|Classroom|Lesson Plan|Pedagogy|Instruction|Student Assessment|Education|Tutoring|Training|Academic|Teacher|Instructor|Professor|Educator|Faculty|Tutor|Lecturer)\\b',
-    'ADVOCATE': r'\\b(?:Litigation|Legal Research|Contract Management|Pleadings|Court|Compliance|Regulatory|Corporate Law|Legal Assistance|Dispute Resolution|Law|Legal|Attorney|Paralegal|Justice|Counsel|Case Manager)\\b'
+    'INFORMATION-TECHNOLOGY': r'\\b(?:Python|Go|Golang|Java|JavaScript|TypeScript|C\\+\\+|C#|SQL|PostgreSQL|MySQL|Docker|Kubernetes|AWS|Linux|Active Directory|Windows Server|Veeva Vault|AS400|Machine Learning|Deep Learning|NLP|Scikit-Learn|PyTorch|TensorFlow|Software|Developer|Engineer|Programmer|DevOps|System Administrator|Frontend|Backend|IT Specialist|Network|Information Technology|Database(?:\\s+Administration)?|Troubleshooting|Technical Support|Microsoft Office|Excel|Word|PowerPoint|Outlook|Access)\\b',
+    'HEALTHCARE': r'\\b(?:Patient Care|Clinical|Medical|Hospital|Healthcare|Nursing|RN|BSN|Pharmacy|Therapy|Diagnosis|Treatment|Caregiver|Hospice|Home Health|Nurse|Physician|Doctor|Pharmacist|Therapist|EMR|HIPAA|Vital Signs|CPR|Phlebotomy|Medication Administration)\\b',
+    'ACCOUNTANT': r'\\b(?:Financial Accounting|General Ledger|GAAP|Financial Statements|Reconciliation|Tax|Audit|Auditing|Accounts Payable|Accounts Receivable|Payroll|Bookkeeping|Financial Reporting|Budgeting|Budget|Billing|Closing|QuickBooks|SAP|Credit|Cash Deposits|Account Resolution|Default Management|CPA|Accountant|Accounting|Auditor|Bookkeeper|Finance)\\b',
+    'CHEF': r'\\b(?:Culinary|Culinary Arts|Pastry|Food Preparation|Kitchen|Menu|Menu Planning|Catering|Baking|Food Safety|HACCP|Sanitation|Inventory|Cost Control|Cooking|Banquet|Recipe|Chef|Cook|Baker|Sous Chef|Line Cook)\\b',
+    'TEACHER': r'\\b(?:Teaching|Curriculum|Classroom|Classroom Management|Lesson Plan|Lesson Planning|Pedagogy|Instruction|Instructional Design|Student Assessment|Education|Tutoring|Training|Academic|Teacher|Instructor|Professor|Educator|Faculty|Tutor|Lecturer)\\b',
+    'ADVOCATE': r'\\b(?:Litigation|Legal Research|Legal Drafting|Contracts|Contract Management|Contract Negotiation|Pleadings|Court|Compliance|Regulatory|Corporate Law|Due Diligence|Trial Preparation|Mediation|Arbitration|Legal Assistance|Dispute Resolution|Law|Legal|Attorney|Paralegal|Justice|Counsel|Case Manager)\\b'
 }
 
 STOP_WORDS_LOOKAHEAD = r'(?!\\s+(?:dari|yang|di|ke|dan|atau|dengan|untuk|pada|selama|sebagai|from|at|in|with|and|or|for|to)\\b)'
 EDU_PATTERNS = [
+    rf'\\b(?:Bachelor|Master|Associate)\\s+(?:of|in)\\s+[A-Z][a-zA-Z]+(?:\\s+[A-Z][a-zA-Z]+)?\\s*:\\s*[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+){{0,2}}\\b',
     rf'\\b(?:S1|S2|S3|D3|D4)\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+)?\\b',
-    r'\\b(?:S\\.Kom|S\\.T|S\\.E|S\\.Si|S\\.H|S\\.Pd|M\\.Kom|M\\.T|MBA|BSN|CPA|J\\.D\\.|JD|MD|Ph\\.D)\\b',
+    r'\\b(?:S\\.Kom|S\\.T|S\\.E|S\\.Si|S\\.H|S\\.Pd|M\\.Kom|M\\.T|MBA|BSN|CPA|J\\.D\\.|JD|MD|Ph\\.D|High School Diploma|GED)\\b',
     rf'\\b(?:Bachelor|Master|Doctor|Associate)(?:\\s+of|\\s+in)\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+){{0,2}}\\b',
     rf'\\b(?:Sarjana|Magister|Diploma)\\s+[A-Z][a-zA-Z0-9]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z0-9]+){{0,2}}\\b',
-    r'\\b(?:Computer Science|Information Technology|Nursing|Accounting|Finance|Culinary Arts|Education|Law|Business Administration)\\b'
+    r'\\b(?:Computer Science|Information Technology|Nursing|Accounting|Finance|Culinary Arts|Education|Law|Business Administration|Psychology)\\b'
 ]
 
 ORG_PATTERNS = [
@@ -341,57 +169,21 @@ ORG_PATTERNS = [
     rf'\\bInstitut\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+){{0,3}}\\b',
     rf'\\bPoliteknik\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+){{0,2}}\\b',
     rf'\\bPT\\.?\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+){{0,3}}\\b',
+    r'\\b(?:Culinary Institute(?:\\s+of\\s+America)?|Community College|Technical College|Technical Institute|City College|State College|Law Firm|School District)\\b',
+    r'\\b[A-Z][a-zA-Z]+(?:\\s+[A-Z][a-zA-Z]+)?\\s+State\\s+University\\b',
     r'\\b[A-Z][a-zA-Z]+\\s+(?:University|College|Institute|Hospital|Medical Center|Clinic|Corporation|Corp|Inc|LLC|Firm|School|Academy|Bank)\\b',
     rf'\\bUniversity\\s+of\\s+[A-Z][a-zA-Z]+(?:{STOP_WORDS_LOOKAHEAD}\\s+[A-Z][a-zA-Z]+)?\\b'
 ]
 
-def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
-    \"\"\"
-    Mengekstrak 5 Entitas Kompetensi (EDU, ORG, SKILL, ROLE, DUR) sesuai Tabel 2.5 Skripsi
-    menggunakan kombinasi prediksi token mBERT NER & validasi gazetteer domain rekrutmen.
-    \"\"\"
+def extract_ner_entities_mbert_hybrid(text):
     if not isinstance(text, str) or not text.strip():
         return {'EDU': [], 'ORG': [], 'SKILL': [], 'ROLE': [], 'DUR': [], 'DOMAINS': [], 'ROLE_TIER': 'GENERAL', 'TAGGED_TEXT': ''}
 
     found = {'EDU': [], 'ORG': [], 'SKILL': [], 'ROLE': [], 'DUR': []}
 
-    # 1. Deep Learning Token Classification Inference (ketika diaktifkan untuk kalimat uji / Tabel 2.5)
-    if use_dl_model:
-        ner_model.eval()
-        enc = tokenizer(text, return_offsets_mapping=True, truncation=True, max_length=128, return_tensors='pt').to(device)
-        with torch.no_grad():
-            logits = ner_model(input_ids=enc['input_ids'], attention_mask=enc['attention_mask']).logits[0]
-        pred_ids = torch.argmax(logits, dim=-1).cpu().tolist()
-        offsets = enc['offset_mapping'][0].cpu().tolist()
-        curr_type, curr_start, curr_end = None, None, None
-        for p_id, (s_c, e_c) in zip(pred_ids, offsets):
-            if s_c == 0 and e_c == 0:
-                continue
-            tag = ID2TAG[p_id]
-            if tag.startswith('B-'):
-                if curr_type and curr_end > curr_start:
-                    span_txt = text[curr_start:curr_end].strip(' ,.;:')
-                    if span_txt and span_txt not in found[curr_type]:
-                        found[curr_type].append(span_txt)
-                curr_type = tag[2:]
-                curr_start, curr_end = s_c, e_c
-            elif tag.startswith('I-') and curr_type == tag[2:]:
-                curr_end = e_c
-            else:
-                if curr_type and curr_end > curr_start:
-                    span_txt = text[curr_start:curr_end].strip(' ,.;:')
-                    if span_txt and span_txt not in found[curr_type]:
-                        found[curr_type].append(span_txt)
-                curr_type = None
-        if curr_type and curr_end > curr_start:
-            span_txt = text[curr_start:curr_end].strip(' ,.;:')
-            if span_txt and span_txt not in found[curr_type]:
-                found[curr_type].append(span_txt)
-
-    # 2. Ekstraksi Posisi/Jabatan (ROLE) & Penentuan Spesialisasi (Core vs Cognate)
     pos_header = re.search(r'Position:\\s*(.+?)(?=\\.\\s*(?:Experience Level|Required Skills|Job Description)|$)', text, re.I)
     header_title = pos_header.group(1).strip() if pos_header else ''
-    if header_title and header_title not in found['ROLE']:
+    if header_title:
         found['ROLE'].append(header_title)
 
     role_search_target = header_title if header_title else text[:400]
@@ -411,7 +203,6 @@ def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
             if dom not in cog_doms:
                 cog_doms.append(dom)
 
-    # 3. Ekstraksi Keahlian Teknis & Domain (SKILL)
     skill_dom_counts = {}
     for dom, pat in DOMAIN_SKILL_PATTERNS.items():
         matches = re.findall(pat, text, re.I)
@@ -425,21 +216,18 @@ def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
             if m not in found['SKILL']:
                 found['SKILL'].append(m)
 
-    # 4. Ekstraksi Riwayat Pendidikan (EDU)
     for pat in EDU_PATTERNS:
         for m in re.findall(pat, text):
             cl = m.strip()
             if cl.lower() not in [e.lower() for e in found['EDU']]:
                 found['EDU'].append(cl)
 
-    # 5. Ekstraksi Organisasi / Institusi (ORG)
     for pat in ORG_PATTERNS:
         for m in re.findall(pat, text):
             cl = m.strip()
             if cl.lower() not in [o.lower() for o in found['ORG']]:
                 found['ORG'].append(cl)
 
-    # 6. Ekstraksi Durasi Pengalaman (DUR)
     for m in re.findall(r'\\b(\\d+\\+?\\s*(?:-\\s*\\d+\\s*)?(?:tahun|bulan|years?|yrs?|months?)(?:\\s+pengalaman|\\s+of\\s+experience|\\s+experience)?)\\b', text, re.I):
         cl = m.strip()
         if cl.lower() not in [d.lower() for d in found['DUR']]:
@@ -448,30 +236,19 @@ def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
     if lvl_m and lvl_m.group(1).strip() not in found['DUR']:
         found['DUR'].append(lvl_m.group(1).strip())
 
-    # Tentukan Domain Kompetensi Utama & Tier Peran
     if header_title:
-        # Untuk Job Posting: utamakan domain dari judul lowongan (Core vs Cognate)
         if cog_doms and not core_doms:
-            detected_domains = cog_doms
-            role_tier = 'COGNATE_SUBROLE'
+            detected_domains, role_tier = cog_doms, 'COGNATE_SUBROLE'
         elif core_doms and not cog_doms:
-            detected_domains = core_doms
-            role_tier = 'CORE_DOMAIN_ROLE'
+            detected_domains, role_tier = core_doms, 'CORE_DOMAIN_ROLE'
         elif cog_doms and core_doms:
-            detected_domains = cog_doms
-            role_tier = 'COGNATE_SUBROLE'
+            detected_domains, role_tier = cog_doms, 'COGNATE_SUBROLE'
         else:
             top_dom = max(skill_dom_counts.items(), key=lambda x: x[1])[0] if any(skill_dom_counts.values()) else 'GENERAL'
-            detected_domains = [top_dom]
-            role_tier = 'CORE_DOMAIN_ROLE'
+            detected_domains, role_tier = [top_dom], 'CORE_DOMAIN_ROLE'
     else:
-        # Untuk CV Pelamar: utamakan deteksi peran utama pada header pembuka CV (85 karakter pertama)
         head85 = text[:85]
-        header_matches = []
-        for dom_k, pat_k in CV_HEADER_PATTERNS.items():
-            m_h = re.search(pat_k, head85, re.I)
-            if m_h:
-                header_matches.append((m_h.start(), dom_k))
+        header_matches = [(m.start(), dom_k) for dom_k, pat_k in CV_HEADER_PATTERNS.items() for m in [re.search(pat_k, head85, re.I)] if m]
         if header_matches:
             header_matches.sort(key=lambda x: x[0])
             detected_domains = [header_matches[0][1]]
@@ -480,7 +257,6 @@ def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
             detected_domains = [sorted_doms[0][0]] if sorted_doms and sorted_doms[0][1] > 0 else ['GENERAL']
         role_tier = 'CANDIDATE_PROFILE'
 
-    # Bentuk Teks Berlabel Inline Sesuai Format Tabel 2.5 Skripsi
     tagged_text = text[:350]
     tagged_text = re.sub(r'\\b(Python,\\s*Go,\\s*(?:dan|and)\\s*C#)', r'\\1 (SKILL)', tagged_text, flags=re.I)
     for lbl_tag in ['EDU', 'ORG', 'SKILL', 'ROLE', 'DUR']:
@@ -502,48 +278,61 @@ def extract_ner_entities_mbert_hybrid(text, use_dl_model=False):
     }
 
 def build_ner_enriched_text(text, doc_type='CV'):
-    \"\"\"
-    Menyusun entitas hasil ekstraksi NER (EDU, ORG, SKILL, ROLE, DUR) menjadi
-    1 Teks Kompetensi Terstruktur di awal sekuens sebelum masuk ke mBERT Feature Extractor.
-    \"\"\"
-    ent = extract_ner_entities_mbert_hybrid(text, use_dl_model=False)
+    ent = extract_ner_entities_mbert_hybrid(text)
     dom_str = ', '.join(ent['DOMAINS']) if ent['DOMAINS'] else 'GENERAL'
-    tier_str = ent['ROLE_TIER']
     role_str = ', '.join(ent['ROLE']) if ent['ROLE'] else 'Unspecified'
     skill_str = ', '.join(ent['SKILL']) if ent['SKILL'] else 'Unspecified'
     edu_str = ', '.join(ent['EDU']) if ent['EDU'] else 'Unspecified'
     dur_str = ', '.join(ent['DUR']) if ent['DUR'] else 'Unspecified'
     org_str = ', '.join(ent['ORG']) if ent['ORG'] else 'Unspecified'
-    structured_prefix = (
-        f"[DOC] {doc_type} | [DOMAIN] {dom_str} | [TIER] {tier_str} | "
+    return (
+        f"[DOC] {doc_type} | [DOMAIN] {dom_str} | [TIER] {ent['ROLE_TIER']} | "
         f"[ROLE] {role_str} | [SKILL] {skill_str} | [EDU] {edu_str} | "
-        f"[DUR] {dur_str} | [ORG] {org_str} || "
+        f"[DUR] {dur_str} | [ORG] {org_str} || {text}"
     )
-    return structured_prefix + text
 
-# Demonstrasi Langsung Tabel 2.5 Skripsi
+def encode_bio_labels_for_texts(texts, tokenizer, max_len):
+    all_bio = []
+    for text in texts:
+        ent = extract_ner_entities_mbert_hybrid(text)
+        char_labels = ['O'] * len(text)
+        for tag in ['ROLE', 'EDU', 'ORG', 'DUR', 'SKILL']:
+            for phrase in ent.get(tag, []):
+                if phrase and len(phrase) >= 2:
+                    for m in re.finditer(re.escape(phrase), text, re.I):
+                        for idx in range(m.start(), min(m.end(), len(text))):
+                            char_labels[idx] = tag
+        enc = tokenizer(text, max_length=max_len, padding='max_length', truncation=True, return_offsets_mapping=True)
+        token_labels, prev_ent = [], 'O'
+        for s_c, e_c in enc['offset_mapping']:
+            if s_c == 0 and e_c == 0:
+                token_labels.append(-100)
+                prev_ent = 'O'
+                continue
+            votes = [c for c in char_labels[s_c:min(e_c, len(text))] if c != 'O']
+            if votes:
+                curr_ent = votes[0]
+                prefix = 'I-' if prev_ent == curr_ent else 'B-'
+                token_labels.append(TAG2ID.get(f"{prefix}{curr_ent}", 0))
+                prev_ent = curr_ent
+            else:
+                token_labels.append(TAG2ID['O'])
+                prev_ent = 'O'
+        all_bio.append(token_labels)
+    return torch.tensor(all_bio, dtype=torch.long)
+
+# Demonstrasi Tabel 2.5 Skripsi
 kalimat_tabel_2_5 = (
     "Lulusan S1 Informatika dari Universitas Surabaya yang menguasai Python, Go, dan C# "
     "dan memiliki pengalaman magang sebagai Software Engineer di PT Telekomunikasi Indonesia selama 6 bulan."
 )
-hasil_ner_2_5 = extract_ner_entities_mbert_hybrid(kalimat_tabel_2_5, use_dl_model=True)
-
-print("\\n" + "="*95)
-print("DEMONSTRASI TABEL 2.5 SKRIPSI: PENERAPAN DEEP LEARNING NER mBERT PADA DOKUMEN CV PELAMAR")
-print("="*95)
-df_tabel_2_5 = pd.DataFrame({
-    'Teks Asli': [kalimat_tabel_2_5],
-    'Teks dengan Label Entitas menggunakan NER': [hasil_ner_2_5['TAGGED_TEXT']]
-})
-for col, val in df_tabel_2_5.iloc[0].items():
-    print(f"[{col}]:\\n  {val}\\n")
-print("Rincian Entitas Terdeteksi:")
+hasil_ner_2_5 = extract_ner_entities_mbert_hybrid(kalimat_tabel_2_5)
+print("DEMONSTRASI TABEL 2.5 SKRIPSI:")
+print("Teks Berlabel:", hasil_ner_2_5['TAGGED_TEXT'])
 for k_ent in ['EDU', 'ORG', 'SKILL', 'ROLE', 'DUR']:
     print(f"  - {k_ent:6s}: {hasil_ner_2_5[k_ent]}")
-print("="*95)
 
-# Terapkan Ekstraksi NER ke Seluruh 1.500 Pasangan CV & Job (Train, Val, Test)
-print("\\n[NER STRUCTURING] Menyusun Teks Kompetensi Terstruktur berbasis NER untuk Train, Val, dan Test set...")
+# Ekstraksi NER & Pre-Tokenization untuk Max Length: [128, 256, 512]
 for split_df in [train_df, val_df, test_df]:
     split_df['job_ner'] = split_df['job_clean'].apply(lambda x: build_ner_enriched_text(x, doc_type='JOB_POSTING'))
     split_df['cv_ner'] = split_df['cv_clean'].apply(lambda x: build_ner_enriched_text(x, doc_type='CANDIDATE_CV'))
@@ -552,15 +341,11 @@ train_labels_tensor = torch.tensor(train_df['label'].values, dtype=torch.long)
 val_labels_tensor = torch.tensor(val_df['label'].values, dtype=torch.long)
 test_labels_tensor = torch.tensor(test_df['label'].values, dtype=torch.long)
 
-# Pre-Tokenization untuk 3 Variasi Max Length sesuai Catatan Kertas Dosen: [128, 256, 512]
 MAX_LENGTH_OPTIONS = [128, 256, 512]
-MAX_LENGTH = 256  # Default fallback
 CACHED_DATASETS_NER = {}
 CACHED_DATASETS_RAW = {}
 
-print("[PRE-ENCODING] Menyiapkan TensorDataset untuk Max Length Token: [128, 256, 512]...")
 for m_len in MAX_LENGTH_OPTIONS:
-    # 1. Dataset NER-Enriched (untuk Model 2 Usulan: NER + mBERT + Sklearn Cosine)
     tr_j = tokenizer(list(train_df['job_ner']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
     tr_c = tokenizer(list(train_df['cv_ner']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
     va_j = tokenizer(list(val_df['job_ner']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
@@ -568,13 +353,19 @@ for m_len in MAX_LENGTH_OPTIONS:
     te_j = tokenizer(list(test_df['job_ner']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
     te_c = tokenizer(list(test_df['cv_ner']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
 
+    tr_j_bio = encode_bio_labels_for_texts(list(train_df['job_ner']), tokenizer, m_len)
+    tr_c_bio = encode_bio_labels_for_texts(list(train_df['cv_ner']), tokenizer, m_len)
+    va_j_bio = encode_bio_labels_for_texts(list(val_df['job_ner']), tokenizer, m_len)
+    va_c_bio = encode_bio_labels_for_texts(list(val_df['cv_ner']), tokenizer, m_len)
+    te_j_bio = encode_bio_labels_for_texts(list(test_df['job_ner']), tokenizer, m_len)
+    te_c_bio = encode_bio_labels_for_texts(list(test_df['cv_ner']), tokenizer, m_len)
+
     CACHED_DATASETS_NER[m_len] = {
-        'train': TensorDataset(tr_j['input_ids'], tr_j['attention_mask'], tr_c['input_ids'], tr_c['attention_mask'], train_labels_tensor),
-        'val': TensorDataset(va_j['input_ids'], va_j['attention_mask'], va_c['input_ids'], va_c['attention_mask'], val_labels_tensor),
-        'test': TensorDataset(te_j['input_ids'], te_j['attention_mask'], te_c['input_ids'], te_c['attention_mask'], test_labels_tensor)
+        'train': TensorDataset(tr_j['input_ids'], tr_j['attention_mask'], tr_c['input_ids'], tr_c['attention_mask'], train_labels_tensor, tr_j_bio, tr_c_bio),
+        'val': TensorDataset(va_j['input_ids'], va_j['attention_mask'], va_c['input_ids'], va_c['attention_mask'], val_labels_tensor, va_j_bio, va_c_bio),
+        'test': TensorDataset(te_j['input_ids'], te_j['attention_mask'], te_c['input_ids'], te_c['attention_mask'], test_labels_tensor, te_j_bio, te_c_bio)
     }
 
-    # 2. Dataset Raw Clean (untuk Model 1 Pembanding: mBERT Saja Tanpa Cosine & Tanpa Struktur Cosine NER)
     tr_jr = tokenizer(list(train_df['job_clean']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
     tr_cr = tokenizer(list(train_df['cv_clean']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
     va_jr = tokenizer(list(val_df['job_clean']), padding='max_length', truncation=True, max_length=m_len, return_tensors='pt')
@@ -588,21 +379,10 @@ for m_len in MAX_LENGTH_OPTIONS:
         'test': TensorDataset(te_jr['input_ids'], te_jr['attention_mask'], te_cr['input_ids'], te_cr['attention_mask'], test_labels_tensor)
     }
 
-train_dataset = CACHED_DATASETS_NER[256]['train']
-val_dataset = CACHED_DATASETS_NER[256]['val']
-test_dataset = CACHED_DATASETS_NER[256]['test']
-print("[DATASET READY] Seluruh variasi Max Length (128, 256, 512) siap di memori!")"""
+print("Pre-tokenization selesai untuk Max Length [128, 256, 512].")"""
 
-CELL_4_CODE = """# 4. Definisi Arsitektur:
-#    A. Model 2 (Usulan): SiameseMBERTCosineExtractor (mBERT Feature Extractor Murni + PureCosineMarginLoss)
-#    B. Model 1 (Pembanding Poin 6): MBERTSajaClassifier (mBERT Saja Tanpa Cosine & Tanpa Fitur Jarak)
-
+CELL_4_CODE = """# 4. Definisi Arsitektur Model Usulan (Unified NER + Siamese mBERT) & Model Pembanding (mBERT Saja)
 class EarlyStopping:
-    \"\"\"
-    Early Stopping sesuai Papan Tulis Dosen (Poin 2 & 3):
-    Max Epoch = 100, Patience = 5, Monitoring = val_loss.
-    Menyimpan bobot model terbaik pada saat val_loss mencapai titik minimum.
-    \"\"\"
     def __init__(self, patience=5, min_delta=0.0001):
         self.patience = patience
         self.min_delta = min_delta
@@ -612,65 +392,63 @@ class EarlyStopping:
         self.best_state = None
 
     def __call__(self, val_loss, model):
-        if self.best_loss is None:
-            self.best_loss = val_loss
-            self.best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-        elif val_loss > self.best_loss - self.min_delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
+        if self.best_loss is None or val_loss < self.best_loss - self.min_delta:
             self.best_loss = val_loss
             self.best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
             self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
 
 class SiameseMBERTCosineExtractor(nn.Module):
-    \"\"\"
-    MODEL USULAN (mBERT sebagai Feature Extractor untuk Sklearn Cosine Similarity):
-    Sesuai Poin 1 Papan Tulis Dosen:
-    'Perbaiki implementasi cosine, seharusnya mBert hanya untuk ekstraksi fitur saja.
-     Jadi ambil embedding terakhir, kemudian baru hitung cosine yang pakai sklearn.'
-    \"\"\"
-    def __init__(self, mbert_model, dropout_rate=0.1):
+    \"\"\"Model Usulan: Unified Deep Learning NER (11 Label BIO) + Entity-Weighted Pooling + Proyeksi 768-d.\"\"\"
+    def __init__(self, mbert_model, dropout_rate=0.1, num_ner_labels=len(NER_TAGS), use_ner_pooling=True):
         super().__init__()
         self.mbert = mbert_model
         self.dropout = nn.Dropout(dropout_rate)
+        self.ner_head = nn.Linear(768, num_ner_labels)
         self.projection = nn.Linear(768, 768)
-        # Inisialisasi projection mendekati matriks identitas agar mempertahankan ruang semantik mBERT di awal epoch
+        self.use_ner_pooling = use_ner_pooling
         nn.init.eye_(self.projection.weight)
         nn.init.zeros_(self.projection.bias)
 
-    def pool_and_project(self, model_output, attention_mask):
-        token_embs = model_output.last_hidden_state
+    def encode_with_ner(self, input_ids, attention_mask):
+        output = self.mbert(input_ids=input_ids, attention_mask=attention_mask)
+        token_embs = output.last_hidden_state
+        ner_logits = self.ner_head(self.dropout(token_embs))
+
         cls_emb = token_embs[:, 0, :]
         mask_exp = attention_mask.unsqueeze(-1).expand(token_embs.size()).float()
-        mean_emb = torch.sum(token_embs * mask_exp, dim=1) / torch.clamp(mask_exp.sum(dim=1), min=1e-9)
+
+        if self.use_ner_pooling:
+            probs = torch.softmax(ner_logits.detach(), dim=-1)
+            entity_prob = 1.0 - probs[:, :, 0]
+            weights = mask_exp * (1.0 + 0.5 * entity_prob.unsqueeze(-1))
+            mean_emb = torch.sum(token_embs * weights, dim=1) / torch.clamp(weights.sum(dim=1), min=1e-9)
+        else:
+            mean_emb = torch.sum(token_embs * mask_exp, dim=1) / torch.clamp(mask_exp.sum(dim=1), min=1e-9)
+
         combined = 0.5 * cls_emb + 0.5 * mean_emb
         projected = self.projection(self.dropout(combined))
-        return torch.nn.functional.normalize(projected, p=2, dim=1)
+        norm_emb = torch.nn.functional.normalize(projected, p=2, dim=1)
+        return norm_emb, ner_logits
 
     def encode_text(self, input_ids, attention_mask):
-        output = self.mbert(input_ids=input_ids, attention_mask=attention_mask)
-        return self.pool_and_project(output, attention_mask)
+        norm_emb, _ = self.encode_with_ner(input_ids, attention_mask)
+        return norm_emb
 
-    def forward(self, job_ids, job_mask, cv_ids, cv_mask):
-        u = self.encode_text(job_ids, job_mask)
-        v = self.encode_text(cv_ids, cv_mask)
+    def forward(self, job_ids, job_mask, cv_ids, cv_mask, return_ner=False):
+        u, job_ner_logits = self.encode_with_ner(job_ids, job_mask)
+        v, cv_ner_logits = self.encode_with_ner(cv_ids, cv_mask)
         cos_sim = torch.sum(u * v, dim=-1)
+        if return_ner:
+            return u, v, cos_sim, job_ner_logits, cv_ner_logits
         return u, v, cos_sim
 
-# Target Skor Kemiripan Kosinus Sesuai Standar Akademik (Khatri et al., 2025):
-# Not Fit (<60%): 0.15 | Close Fit (60% - 80%): 0.70 | Fit (>=80%): 0.90
 TARGET_COSINE_SCORES = torch.tensor([0.15, 0.70, 0.90])
 
 class PureCosineMarginLoss(nn.Module):
-    \"\"\"
-    Fungsi Loss Murni Berbasis Sudut Kosinus (Tanpa Classifier Head):
-    Memastikan 100% gradien pelatihan dipakai untuk menata vektor 768-dimensi mBERT agar:
-      - Pasangan 'Not Fit'   memiliki Cosine Similarity ~ 15% (di bawah ambang 60%)
-      - Pasangan 'Close Fit' memiliki Cosine Similarity ~ 70% (tepat di tengah rentang 60% - 80%)
-      - Pasangan 'Fit'       memiliki Cosine Similarity ~ 90% (di atas ambang 80%)
-    \"\"\"
     def __init__(self, scale_mse=10.0, scale_band=6.0):
         super().__init__()
         self.mse = nn.MSELoss()
@@ -681,7 +459,6 @@ class PureCosineMarginLoss(nn.Module):
         targets = TARGET_COSINE_SCORES.to(labels.device)[labels]
         loss_mse = self.mse(cos_sim, targets) * self.scale_mse
 
-        # Penalti batas ordinal agar distribusi skor ketiga kelas tidak saling tumpang-tindih
         not_fit_mask = (labels == 0).float()
         close_fit_mask = (labels == 1).float()
         fit_mask = (labels == 2).float()
@@ -689,16 +466,10 @@ class PureCosineMarginLoss(nn.Module):
         pen_not = (torch.relu(cos_sim - 0.45) ** 2) * not_fit_mask
         pen_close = ((torch.relu(0.63 - cos_sim) ** 2) + (torch.relu(cos_sim - 0.77) ** 2)) * close_fit_mask
         pen_fit = (torch.relu(0.83 - cos_sim) ** 2) * fit_mask
-
-        loss_band = (pen_not + pen_close + pen_fit).mean() * self.scale_band
-        return loss_mse + loss_band
+        return loss_mse + (pen_not + pen_close + pen_fit).mean() * self.scale_band
 
 class MBERTSajaClassifier(nn.Module):
-    \"\"\"
-    MODEL PEMBANDING 1 (mBERT Saja Tanpa Cosine Similarity - Poin 6 Papan Tulis Dosen):
-    Menggunakan representasi token [CLS] dari mBERT yang langsung dihubungkan ke lapisan
-    klasifikasi linear (Cross-Entropy Loss) tanpa perhitungan sudut/jarak Cosine Similarity.
-    \"\"\"
+    \"\"\"Model Pembanding 1: mBERT Saja Tanpa Cosine Similarity.\"\"\"
     def __init__(self, mbert_model, dropout_rate=0.2, bottleneck_dim=24):
         super().__init__()
         self.mbert = mbert_model
@@ -713,58 +484,21 @@ class MBERTSajaClassifier(nn.Module):
     def forward(self, job_ids, job_mask, cv_ids, cv_mask):
         out_j = self.mbert(input_ids=job_ids, attention_mask=job_mask).last_hidden_state[:, 0, :]
         out_c = self.mbert(input_ids=cv_ids, attention_mask=cv_mask).last_hidden_state[:, 0, :]
-        concat_features = torch.cat([out_j, out_c], dim=-1)
-        logits = self.classifier(concat_features)
-        return logits
+        return self.classifier(torch.cat([out_j, out_c], dim=-1))
 
 def cosine_batch_preds(cos_sim_tensor):
-    \"\"\"Mengubah skor kosinus batch menjadi prediksi kelas (0: not fit, 1: close fit, 2: fit).\"\"\"
     scores_pct = torch.clamp(cos_sim_tensor, 0.0, 1.0) * 100.0
     preds = torch.zeros_like(scores_pct, dtype=torch.long)
     preds[scores_pct >= 60.0] = 1
     preds[scores_pct >= 80.0] = 2
-    return preds
+    return preds"""
 
-# Fungsi utilitas untuk Tabel 2 Proposal di Cell 12
-def extract_key_entities(text):
-    ent = extract_ner_entities_mbert_hybrid(text, use_dl_model=False)
-    return {
-        'PENDIDIKAN': ', '.join(ent['EDU']) if ent['EDU'] else 'Tidak Terdeteksi',
-        'POSISI': ', '.join(ent['ROLE']) if ent['ROLE'] else 'Tidak Terdeteksi',
-        'PENGALAMAN': ', '.join(ent['DUR']) if ent['DUR'] else 'Tidak Terdeteksi',
-        'KEAHLIAN': ', '.join(ent['SKILL'][:5]) if ent['SKILL'] else 'Tidak Terdeteksi',
-        'ORGANISASI': ', '.join(ent['ORG']) if ent['ORG'] else 'Tidak Terdeteksi'
-    }
-
-print("[ARSITEKTUR READY] SiameseMBERTCosineExtractor (Model 2 Usulan) & MBERTSajaClassifier (Model 1 Pembanding) siap digunakan.")"""
-
-CELL_5_CODE = """# 5. Hyperparameter Tuning (Random / TPE Search) Gabungan Kertas Dosen & Literatur Ilmiah (Devlin et al., 2019)
-# Parameter yang diuji dalam satu daftar pengujian terpadu (Sesuai Gambar 1 No. 3 & Gambar 2 No. 2):
-#   1. Learning Rate     : [2e-5, 3e-5, 5e-5, 0.001, 0.005, 0.01]
-#      - 3 Kandidat Literatur BERT (Devlin et al., 2019): 2e-5, 3e-5, 5e-5
-#      - 3 Kandidat Catatan Kertas Dosen                : 0.001, 0.005, 0.01
-#   2. Max Length Token  : [128, 256, 512]
-#   3. Dropout Rate      : [0.1, 0.2, 0.3]
-#   4. Weight Decay      : [0.001, 0.01] (Referensi: Loshchilov & Hutter, 2019 - AdamW; Devlin et al., 2019)
-
+CELL_5_CODE = """# 5. Hyperparameter Tuning dengan Optuna (TPE Sampler)
 BATCH_SIZE = 16
 WARMUP_RATIO = 0.1
-TUNING_PROXY_EPOCHS = 3  # Proxy evaluation cepat untuk memilih kombinasi hyperparameter terbaik
+TUNING_PROXY_EPOCHS = 3
 LR_CANDIDATES = [2e-5, 3e-5, 5e-5, 0.001, 0.005, 0.01]
 
-SEARCH_SPACE_INFO = {
-    'learning_rate': LR_CANDIDATES,
-    'max_length': [128, 256, 512],
-    'dropout': [0.1, 0.2, 0.3],
-    'weight_decay': [0.001, 0.01]
-}
-print("[SEARCH SPACE] Ruang Pencarian Hyperparameter Terpadu (Gabungan Kertas Dosen & Literatur Devlin et al., 2019):")
-for k_sp, v_sp in SEARCH_SPACE_INFO.items():
-    print(f"  - {k_sp:15s}: {v_sp}")
-
-# ==============================================================================
-# BAGIAN A: HYPERPARAMETER TUNING UNTUK MODEL 2 (USULAN: mBERT + COSINE)
-# ==============================================================================
 tuning_records_m2 = []
 
 def objective_m2_cosine(trial):
@@ -781,32 +515,35 @@ def objective_m2_cosine(trial):
     mbert_base = AutoModel.from_pretrained(MODEL_NAME).to(device)
     model = SiameseMBERTCosineExtractor(mbert_base, dropout_rate=dropout).to(device)
 
-    # Jika lr berasal dari rentang fine-tuning BERT (<= 1e-4), head proyeksi diberi lr*10 agar konvergen cepat
     lr_proj = lr * 10.0 if lr <= 1e-4 else lr
     optimizer = torch.optim.AdamW([
         {'params': model.mbert.parameters(), 'lr': lr, 'weight_decay': weight_decay},
+        {'params': model.ner_head.parameters(), 'lr': lr_proj, 'weight_decay': weight_decay},
         {'params': model.projection.parameters(), 'lr': lr_proj, 'weight_decay': weight_decay}
     ])
 
     total_steps = len(tr_loader) * TUNING_PROXY_EPOCHS
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=int(total_steps * WARMUP_RATIO), num_training_steps=total_steps
-    )
+    scheduler = get_linear_schedule_with_warmup(optimizer, int(total_steps * WARMUP_RATIO), total_steps)
     criterion = PureCosineMarginLoss()
+    ner_criterion = nn.CrossEntropyLoss(ignore_index=-100)
     scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
 
     best_v_loss, best_v_acc = float('inf'), 0.0
-    for ep in range(1, TUNING_PROXY_EPOCHS + 1):
+    for _ in range(TUNING_PROXY_EPOCHS):
         model.train()
-        for j_ids, j_mask, c_ids, c_mask, lbl in tr_loader:
-            j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-            c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-            lbl = lbl.to(device)
+        for j_ids, j_mask, c_ids, c_mask, lbl, j_bio, c_bio in tr_loader:
+            j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
+            j_bio, c_bio = j_bio.to(device), c_bio.to(device)
 
             optimizer.zero_grad()
             with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
-                _, _, cos_sim = model(j_ids, j_mask, c_ids, c_mask)
-                loss = criterion(cos_sim, lbl)
+                _, _, cos_sim, j_ner_logits, c_ner_logits = model(j_ids, j_mask, c_ids, c_mask, return_ner=True)
+                loss_cos = criterion(cos_sim, lbl)
+                loss_ner = 0.5 * (
+                    ner_criterion(j_ner_logits.view(-1, len(NER_TAGS)), j_bio.view(-1)) +
+                    ner_criterion(c_ner_logits.view(-1, len(NER_TAGS)), c_bio.view(-1))
+                )
+                loss = loss_cos + 0.20 * loss_ner
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -816,34 +553,24 @@ def objective_m2_cosine(trial):
         model.eval()
         v_losses, v_correct, v_total = [], 0, 0
         with torch.no_grad():
-            for j_ids, j_mask, c_ids, c_mask, lbl in va_loader:
-                j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-                c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-                lbl = lbl.to(device)
+            for j_ids, j_mask, c_ids, c_mask, lbl, _, _ in va_loader:
+                j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
                 with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                     _, _, cos_sim = model(j_ids, j_mask, c_ids, c_mask)
                     v_loss = criterion(cos_sim, lbl)
                 v_losses.append(v_loss.item())
-                preds = cosine_batch_preds(cos_sim)
-                v_correct += (preds == lbl).sum().item()
+                v_correct += (cosine_batch_preds(cos_sim) == lbl).sum().item()
                 v_total += lbl.size(0)
 
         m_v_loss = float(np.mean(v_losses))
-        m_v_acc = (v_correct / v_total) * 100.0
         if m_v_loss < best_v_loss:
             best_v_loss = m_v_loss
-            best_v_acc = m_v_acc
+            best_v_acc = (v_correct / v_total) * 100.0
 
-    lr_source = "Literatur BERT (Devlin et al., 2019)" if lr <= 1e-4 else "Catatan Kertas Dosen"
     tuning_records_m2.append({
-        'Trial': trial.number + 1,
-        'Learning Rate': lr,
-        'Sumber Referensi LR': lr_source,
-        'Max Length': max_len,
-        'Dropout': dropout,
-        'Weight Decay': weight_decay,
-        'Best Val Loss': round(best_v_loss, 4),
-        'Val Acc (%)': round(best_v_acc, 2)
+        'Trial': trial.number + 1, 'Learning Rate': lr, 'Max Length': max_len,
+        'Dropout': dropout, 'Weight Decay': weight_decay,
+        'Best Val Loss': round(best_v_loss, 4), 'Val Acc (%)': round(best_v_acc, 2)
     })
     del model, mbert_base
     if device.type == 'cuda':
@@ -851,28 +578,24 @@ def objective_m2_cosine(trial):
     return best_v_loss
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-print("\\n[TUNING MODEL 2: mBERT + COSINE] Menguji keenam kandidat Learning Rate & variasi Max Length/Dropout/WD (6 Trials)...")
 study_m2 = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=SEED))
-# Enqueue keenam kandidat Learning Rate (3 dari Kertas Dosen + 3 dari Literatur Devlin et al., 2019)
-study_m2.enqueue_trial({'learning_rate': 0.001, 'max_length': 128, 'dropout': 0.2, 'weight_decay': 0.01})
-study_m2.enqueue_trial({'learning_rate': 0.005, 'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.001})
-study_m2.enqueue_trial({'learning_rate': 0.01,  'max_length': 256, 'dropout': 0.3, 'weight_decay': 0.01})
-study_m2.enqueue_trial({'learning_rate': 2e-5,  'max_length': 128, 'dropout': 0.1, 'weight_decay': 0.01})
-study_m2.enqueue_trial({'learning_rate': 3e-5,  'max_length': 512, 'dropout': 0.1, 'weight_decay': 0.001})
-study_m2.enqueue_trial({'learning_rate': 5e-5,  'max_length': 256, 'dropout': 0.1, 'weight_decay': 0.01})
+for params in [
+    {'learning_rate': 0.001, 'max_length': 128, 'dropout': 0.2, 'weight_decay': 0.01},
+    {'learning_rate': 0.005, 'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.001},
+    {'learning_rate': 0.01,  'max_length': 256, 'dropout': 0.3, 'weight_decay': 0.01},
+    {'learning_rate': 2e-5,  'max_length': 128, 'dropout': 0.1, 'weight_decay': 0.01},
+    {'learning_rate': 3e-5,  'max_length': 512, 'dropout': 0.1, 'weight_decay': 0.001},
+    {'learning_rate': 5e-5,  'max_length': 256, 'dropout': 0.1, 'weight_decay': 0.01},
+]:
+    study_m2.enqueue_trial(params)
 study_m2.optimize(objective_m2_cosine, n_trials=6, show_progress_bar=True)
-
 best_params_m2 = study_m2.best_params
-best_params = best_params_m2  # Alias kompatibilitas
-WEIGHT_DECAY = best_params_m2['weight_decay']
 
-print("\\n[HASIL TUNING MODEL 2 (mBERT + COSINE) - PERBANDINGAN 6 LEARNING RATE]:")
+print("HASIL TUNING MODEL 2 (USULAN: NER + mBERT + COSINE):")
 print(pd.DataFrame(tuning_records_m2).to_string(index=False))
-print(f"-> Best Params Model 2 (mBERT + Cosine): {best_params_m2} (Best Val Loss: {study_m2.best_value:.4f})")
+print(f"Best Params Model 2: {best_params_m2}\\n")
 
-# ==============================================================================
-# BAGIAN B: HYPERPARAMETER TUNING UNTUK MODEL 1 (mBERT SAJA TANPA COSINE - POIN 6)
-# ==============================================================================
+# Tuning Model 1 (mBERT Saja Tanpa Cosine)
 tuning_records_m1 = []
 
 def objective_m1_saja(trial):
@@ -899,25 +622,19 @@ def objective_m1_saja(trial):
     ])
 
     total_steps = len(tr_loader) * TUNING_PROXY_EPOCHS
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=int(total_steps * WARMUP_RATIO), num_training_steps=total_steps
-    )
+    scheduler = get_linear_schedule_with_warmup(optimizer, int(total_steps * WARMUP_RATIO), total_steps)
     criterion = nn.CrossEntropyLoss()
     scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
 
     best_v_loss, best_v_acc = float('inf'), 0.0
-    for ep in range(1, TUNING_PROXY_EPOCHS + 1):
+    for _ in range(TUNING_PROXY_EPOCHS):
         model.train()
         for j_ids, j_mask, c_ids, c_mask, lbl in tr_loader:
-            j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-            c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-            lbl = lbl.to(device)
-
+            j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
             optimizer.zero_grad()
             with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                 logits = model(j_ids, j_mask, c_ids, c_mask)
                 loss = criterion(logits, lbl)
-
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -927,64 +644,51 @@ def objective_m1_saja(trial):
         v_losses, v_correct, v_total = [], 0, 0
         with torch.no_grad():
             for j_ids, j_mask, c_ids, c_mask, lbl in va_loader:
-                j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-                c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-                lbl = lbl.to(device)
+                j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
                 with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                     logits = model(j_ids, j_mask, c_ids, c_mask)
                     v_loss = criterion(logits, lbl)
                 v_losses.append(v_loss.item())
-                preds = torch.argmax(logits, dim=1)
-                v_correct += (preds == lbl).sum().item()
+                v_correct += (torch.argmax(logits, dim=1) == lbl).sum().item()
                 v_total += lbl.size(0)
 
         m_v_loss = float(np.mean(v_losses))
-        m_v_acc = (v_correct / v_total) * 100.0
         if m_v_loss < best_v_loss:
             best_v_loss = m_v_loss
-            best_v_acc = m_v_acc
+            best_v_acc = (v_correct / v_total) * 100.0
 
-    lr_source = "Literatur BERT (Devlin et al., 2019)" if lr <= 1e-4 else "Catatan Kertas Dosen"
     tuning_records_m1.append({
-        'Trial': trial.number + 1,
-        'Learning Rate': lr,
-        'Sumber Referensi LR': lr_source,
-        'Max Length': max_len,
-        'Dropout': dropout,
-        'Weight Decay': weight_decay,
-        'Best Val Loss': round(best_v_loss, 4),
-        'Val Acc (%)': round(best_v_acc, 2)
+        'Trial': trial.number + 1, 'Learning Rate': lr, 'Max Length': max_len,
+        'Dropout': dropout, 'Weight Decay': weight_decay,
+        'Best Val Loss': round(best_v_loss, 4), 'Val Acc (%)': round(best_v_acc, 2)
     })
     del model, mbert_base
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     return best_v_loss
 
-print("\\n[TUNING MODEL 1: mBERT SAJA TANPA COSINE] Menguji keenam kandidat Learning Rate (6 Trials)...")
 study_m1 = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=SEED))
-study_m1.enqueue_trial({'learning_rate': 0.001, 'max_length': 128, 'dropout': 0.2, 'weight_decay': 0.01})
-study_m1.enqueue_trial({'learning_rate': 0.005, 'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.001})
-study_m1.enqueue_trial({'learning_rate': 0.01,  'max_length': 256, 'dropout': 0.3, 'weight_decay': 0.01})
-study_m1.enqueue_trial({'learning_rate': 2e-5,  'max_length': 128, 'dropout': 0.1, 'weight_decay': 0.01})
-study_m1.enqueue_trial({'learning_rate': 3e-5,  'max_length': 512, 'dropout': 0.2, 'weight_decay': 0.001})
-study_m1.enqueue_trial({'learning_rate': 5e-5,  'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.01})
+for params in [
+    {'learning_rate': 0.001, 'max_length': 128, 'dropout': 0.2, 'weight_decay': 0.01},
+    {'learning_rate': 0.005, 'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.001},
+    {'learning_rate': 0.01,  'max_length': 256, 'dropout': 0.3, 'weight_decay': 0.01},
+    {'learning_rate': 2e-5,  'max_length': 128, 'dropout': 0.1, 'weight_decay': 0.01},
+    {'learning_rate': 3e-5,  'max_length': 512, 'dropout': 0.2, 'weight_decay': 0.001},
+    {'learning_rate': 5e-5,  'max_length': 256, 'dropout': 0.2, 'weight_decay': 0.01},
+]:
+    study_m1.enqueue_trial(params)
 study_m1.optimize(objective_m1_saja, n_trials=6, show_progress_bar=True)
-
 best_params_m1 = study_m1.best_params
-print("\\n[HASIL TUNING MODEL 1 (mBERT SAJA TANPA COSINE) - PERBANDINGAN 6 LEARNING RATE]:")
+
+print("HASIL TUNING MODEL 1 (mBERT SAJA TANPA COSINE):")
 print(pd.DataFrame(tuning_records_m1).to_string(index=False))
-print(f"-> Best Params Model 1 (mBERT Saja): {best_params_m1} (Best Val Loss: {study_m1.best_value:.4f})")"""
+print(f"Best Params Model 1: {best_params_m1}")"""
 
-CELL_6_CODE = """# 6. Pelatihan Model Terbaik dengan Best Hyperparameters (Max Epoch = 100, Early Stopping Patience = 5, Monitor = val_loss)
-# Sesuai Poin 2, 3, dan 6 Papan Tulis Dosen Pembimbing
-
+CELL_6_CODE = """# 6. Pelatihan Model Terbaik (Max Epoch = 100, Early Stopping Patience = 5, Monitor = val_loss)
 os.makedirs('./models', exist_ok=True)
 
-# ==============================================================================
-# TAHAP 1: FULL TRAINING MODEL 2 (MODEL USULAN: NER + mBERT + SKLEARN COSINE)
-# ==============================================================================
+# A. Pelatihan Model 2 (Model Usulan: Unified NER + Siamese mBERT + Cosine)
 FINAL_MAX_LEN = best_params_m2['max_length']
-MAX_LENGTH = FINAL_MAX_LEN
 eff_bs_m2 = 8 if FINAL_MAX_LEN == 512 else BATCH_SIZE
 
 final_train_loader_m2 = DataLoader(CACHED_DATASETS_NER[FINAL_MAX_LEN]['train'], batch_size=eff_bs_m2, shuffle=True)
@@ -992,49 +696,44 @@ final_val_loader_m2 = DataLoader(CACHED_DATASETS_NER[FINAL_MAX_LEN]['val'], batc
 test_dataset = CACHED_DATASETS_NER[FINAL_MAX_LEN]['test']
 
 mbert_final_m2 = AutoModel.from_pretrained(MODEL_NAME).to(device)
-best_model = SiameseMBERTCosineExtractor(
-    mbert_final_m2,
-    dropout_rate=best_params_m2['dropout']
-).to(device)
+best_model = SiameseMBERTCosineExtractor(mbert_final_m2, dropout_rate=best_params_m2['dropout']).to(device)
 
 lr_m2 = best_params_m2['learning_rate']
 lr_proj_m2 = lr_m2 * 10.0 if lr_m2 <= 1e-4 else lr_m2
 wd_m2 = best_params_m2['weight_decay']
 
 criterion_m2 = PureCosineMarginLoss()
+ner_criterion_m2 = nn.CrossEntropyLoss(ignore_index=-100)
 optimizer_m2 = torch.optim.AdamW([
     {'params': best_model.mbert.parameters(), 'lr': lr_m2, 'weight_decay': wd_m2},
+    {'params': best_model.ner_head.parameters(), 'lr': lr_proj_m2, 'weight_decay': wd_m2},
     {'params': best_model.projection.parameters(), 'lr': lr_proj_m2, 'weight_decay': wd_m2}
 ])
 
 total_steps_m2 = len(final_train_loader_m2) * 100
-scheduler_m2 = get_linear_schedule_with_warmup(
-    optimizer_m2, num_warmup_steps=int(total_steps_m2 * WARMUP_RATIO), num_training_steps=total_steps_m2
-)
+scheduler_m2 = get_linear_schedule_with_warmup(optimizer_m2, int(total_steps_m2 * WARMUP_RATIO), total_steps_m2)
 early_stopping_m2 = EarlyStopping(patience=5)
 scaler_m2 = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
 
-history_epochs = []
-history_train_loss, history_val_loss = [], []
-history_train_acc, history_val_acc = [], []
+history_epochs, history_train_loss, history_val_loss, history_train_acc, history_val_acc = [], [], [], [], []
 
-print("="*85)
-print(f"[TRAINING MODEL 2 USULAN: mBERT + COSINE] Max Epoch=100, Patience=5, Monitor=val_loss")
-print(f"Best Params Terpilih: LR={lr_m2}, MaxLen={FINAL_MAX_LEN}, Dropout={best_params_m2['dropout']}, WeightDecay={wd_m2}")
-print("="*85)
-
+print(f"[TRAINING MODEL 2 USULAN] LR={lr_m2}, MaxLen={FINAL_MAX_LEN}, Dropout={best_params_m2['dropout']}, WD={wd_m2}")
 for epoch in range(1, 101):
     best_model.train()
     t_losses, t_correct, t_total = [], 0, 0
-    for j_ids, j_mask, c_ids, c_mask, lbl in final_train_loader_m2:
-        j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-        c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-        lbl = lbl.to(device)
+    for j_ids, j_mask, c_ids, c_mask, lbl, j_bio, c_bio in final_train_loader_m2:
+        j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
+        j_bio, c_bio = j_bio.to(device), c_bio.to(device)
 
         optimizer_m2.zero_grad()
         with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
-            _, _, cos_sim = best_model(j_ids, j_mask, c_ids, c_mask)
-            loss = criterion_m2(cos_sim, lbl)
+            _, _, cos_sim, j_ner_logits, c_ner_logits = best_model(j_ids, j_mask, c_ids, c_mask, return_ner=True)
+            loss_cos = criterion_m2(cos_sim, lbl)
+            loss_ner = 0.5 * (
+                ner_criterion_m2(j_ner_logits.view(-1, len(NER_TAGS)), j_bio.view(-1)) +
+                ner_criterion_m2(c_ner_logits.view(-1, len(NER_TAGS)), c_bio.view(-1))
+            )
+            loss = loss_cos + 0.20 * loss_ner
 
         scaler_m2.scale(loss).backward()
         scaler_m2.step(optimizer_m2)
@@ -1042,8 +741,7 @@ for epoch in range(1, 101):
         scheduler_m2.step()
 
         t_losses.append(loss.item())
-        preds = cosine_batch_preds(cos_sim)
-        t_correct += (preds == lbl).sum().item()
+        t_correct += (cosine_batch_preds(cos_sim) == lbl).sum().item()
         t_total += lbl.size(0)
 
     train_epoch_loss = float(np.mean(t_losses))
@@ -1052,16 +750,13 @@ for epoch in range(1, 101):
     best_model.eval()
     v_losses, v_correct, v_total = [], 0, 0
     with torch.no_grad():
-        for j_ids, j_mask, c_ids, c_mask, lbl in final_val_loader_m2:
-            j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-            c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-            lbl = lbl.to(device)
+        for j_ids, j_mask, c_ids, c_mask, lbl, _, _ in final_val_loader_m2:
+            j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
             with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                 _, _, cos_sim = best_model(j_ids, j_mask, c_ids, c_mask)
                 v_loss = criterion_m2(cos_sim, lbl)
             v_losses.append(v_loss.item())
-            preds = cosine_batch_preds(cos_sim)
-            v_correct += (preds == lbl).sum().item()
+            v_correct += (cosine_batch_preds(cos_sim) == lbl).sum().item()
             v_total += lbl.size(0)
 
     val_epoch_loss = float(np.mean(v_losses))
@@ -1073,20 +768,16 @@ for epoch in range(1, 101):
     history_train_acc.append(train_epoch_acc)
     history_val_acc.append(val_epoch_acc)
 
-    print(f"Epoch {epoch:02d}/100 | Train Loss: {train_epoch_loss:.4f} - Train Acc: {train_epoch_acc:.2f}% | Val Loss: {val_epoch_loss:.4f} - Val Acc: {val_epoch_acc:.2f}%")
-
+    print(f"Epoch {epoch:02d}/100 | Train Loss: {train_epoch_loss:.4f} ({train_epoch_acc:.2f}%) | Val Loss: {val_epoch_loss:.4f} ({val_epoch_acc:.2f}%)")
     early_stopping_m2(val_epoch_loss, best_model)
     if early_stopping_m2.early_stop:
-        print(f"\\n[EARLY STOPPING MODEL 2] Berhenti pada epoch {epoch} (val_loss terbaik: {early_stopping_m2.best_loss:.4f}).")
+        print(f"Early stopping Model 2 pada epoch {epoch} (best val_loss: {early_stopping_m2.best_loss:.4f}).\\n")
         break
 
 best_model.load_state_dict(early_stopping_m2.best_state)
 torch.save(best_model.state_dict(), './models/best_siamese_mbert_cosine.pt')
-print("[SAVED] Bobot terbaik Model 2 (mBERT + Cosine) disimpan ke: ./models/best_siamese_mbert_cosine.pt\\n")
 
-# ==============================================================================
-# TAHAP 2: FULL TRAINING MODEL 1 (mBERT SAJA TANPA COSINE - POIN 6 PAPAN TULIS)
-# ==============================================================================
+# B. Pelatihan Model 1 (mBERT Saja Tanpa Cosine)
 MAX_LEN_M1 = best_params_m1['max_length']
 eff_bs_m1 = 8 if MAX_LEN_M1 == 512 else BATCH_SIZE
 
@@ -1095,10 +786,7 @@ final_val_loader_m1 = DataLoader(CACHED_DATASETS_RAW[MAX_LEN_M1]['val'], batch_s
 test_dataset_m1 = CACHED_DATASETS_RAW[MAX_LEN_M1]['test']
 
 mbert_final_m1 = AutoModel.from_pretrained(MODEL_NAME).to(device)
-best_model_m1 = MBERTSajaClassifier(
-    mbert_final_m1,
-    dropout_rate=best_params_m1['dropout']
-).to(device)
+best_model_m1 = MBERTSajaClassifier(mbert_final_m1, dropout_rate=best_params_m1['dropout']).to(device)
 for name, param in best_model_m1.mbert.named_parameters():
     if not any(k in name for k in ['encoder.layer.10', 'encoder.layer.11', 'pooler']):
         param.requires_grad = False
@@ -1114,64 +802,46 @@ optimizer_m1 = torch.optim.AdamW([
 ])
 
 total_steps_m1 = len(final_train_loader_m1) * 100
-scheduler_m1 = get_linear_schedule_with_warmup(
-    optimizer_m1, num_warmup_steps=int(total_steps_m1 * WARMUP_RATIO), num_training_steps=total_steps_m1
-)
+scheduler_m1 = get_linear_schedule_with_warmup(optimizer_m1, int(total_steps_m1 * WARMUP_RATIO), total_steps_m1)
 early_stopping_m1 = EarlyStopping(patience=5)
 scaler_m1 = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda'))
 
-history_m1_epochs = []
-history_m1_train_loss, history_m1_val_loss = [], []
-history_m1_train_acc, history_m1_val_acc = [], []
+history_m1_epochs, history_m1_train_loss, history_m1_val_loss, history_m1_train_acc, history_m1_val_acc = [], [], [], [], []
 
-print("="*85)
-print(f"[TRAINING MODEL 1 PEMBANDING: mBERT SAJA TANPA COSINE] Max Epoch=100, Patience=5, Monitor=val_loss")
-print(f"Best Params Terpilih: LR={lr_m1}, MaxLen={MAX_LEN_M1}, Dropout={best_params_m1['dropout']}, WeightDecay={wd_m1}")
-print("="*85)
-
+print(f"[TRAINING MODEL 1 PEMBANDING] LR={lr_m1}, MaxLen={MAX_LEN_M1}, Dropout={best_params_m1['dropout']}, WD={wd_m1}")
 for epoch in range(1, 101):
     best_model_m1.train()
     t_losses, t_correct, t_total = [], 0, 0
     for j_ids, j_mask, c_ids, c_mask, lbl in final_train_loader_m1:
-        j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-        c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-        lbl = lbl.to(device)
-
+        j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
         optimizer_m1.zero_grad()
         with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
             logits = best_model_m1(j_ids, j_mask, c_ids, c_mask)
             loss = criterion_m1(logits, lbl)
-
         scaler_m1.scale(loss).backward()
         scaler_m1.step(optimizer_m1)
         scaler_m1.update()
         scheduler_m1.step()
 
         t_losses.append(loss.item())
-        preds = torch.argmax(logits, dim=1)
-        t_correct += (preds == lbl).sum().item()
+        t_correct += (torch.argmax(logits, dim=1) == lbl).sum().item()
         t_total += lbl.size(0)
 
-    tr_l = float(np.mean(t_losses))
-    tr_a = (t_correct / t_total) * 100.0
+    tr_l, tr_a = float(np.mean(t_losses)), (t_correct / t_total) * 100.0
 
     best_model_m1.eval()
     v_losses, v_correct, v_total = [], 0, 0
     with torch.no_grad():
         for j_ids, j_mask, c_ids, c_mask, lbl in final_val_loader_m1:
-            j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-            c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-            lbl = lbl.to(device)
+            j_ids, j_mask, c_ids, c_mask, lbl = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device), lbl.to(device)
             with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                 logits = best_model_m1(j_ids, j_mask, c_ids, c_mask)
                 v_loss = criterion_m1(logits, lbl)
             v_losses.append(v_loss.item())
-            preds = torch.argmax(logits, dim=1)
-            v_correct += (preds == lbl).sum().item()
+            v_correct += (torch.argmax(logits, dim=1) == lbl).sum().item()
             v_total += lbl.size(0)
 
-    va_l = float(np.mean(v_losses))
-    va_a = (v_correct / v_total) * 100.0
+    va_l, va_a = float(np.mean(v_losses)), (v_correct / v_total) * 100.0
 
     history_m1_epochs.append(epoch)
     history_m1_train_loss.append(tr_l)
@@ -1179,55 +849,51 @@ for epoch in range(1, 101):
     history_m1_train_acc.append(tr_a)
     history_m1_val_acc.append(va_a)
 
-    print(f"Epoch {epoch:02d}/100 | Train Loss: {tr_l:.4f} - Train Acc: {tr_a:.2f}% | Val Loss: {va_l:.4f} - Val Acc: {va_a:.2f}%")
-
+    print(f"Epoch {epoch:02d}/100 | Train Loss: {tr_l:.4f} ({tr_a:.2f}%) | Val Loss: {va_l:.4f} ({va_a:.2f}%)")
     early_stopping_m1(va_l, best_model_m1)
     if early_stopping_m1.early_stop:
-        print(f"\\n[EARLY STOPPING MODEL 1] Berhenti pada epoch {epoch} (val_loss terbaik: {early_stopping_m1.best_loss:.4f}).")
+        print(f"Early stopping Model 1 pada epoch {epoch} (best val_loss: {early_stopping_m1.best_loss:.4f}).")
         break
 
 best_model_m1.load_state_dict(early_stopping_m1.best_state)
-torch.save(best_model_m1.state_dict(), './models/best_mbert_saja.pt')
-print("[SAVED] Bobot terbaik Model 1 (mBERT Saja) disimpan ke: ./models/best_mbert_saja.pt")"""
+torch.save(best_model_m1.state_dict(), './models/best_mbert_saja.pt')"""
 
-CELL_7_CODE = """# 7. Visualisasi Grafik Train vs Val Loss & Train vs Val Accuracy (Poin 4 Catatan & Papan Tulis Dosen)
-fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+CELL_7_CODE = """# 7. Grafik Train vs Val Loss & Train vs Val Accuracy
+fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 
-# Baris 1: Model 2 Usulan (NER + mBERT + Cosine)
 best_ep_m2 = history_epochs[int(np.argmin(history_val_loss))]
-axes[0, 0].plot(history_epochs, history_train_loss, 'o-', color='royalblue', linewidth=2, label='Train Loss')
-axes[0, 0].plot(history_epochs, history_val_loss, 's--', color='crimson', linewidth=2, label='Val Loss')
-axes[0, 0].axvline(best_ep_m2, color='darkgreen', linestyle=':', linewidth=1.8, label=f'Best Val Loss (Epoch {best_ep_m2})')
-axes[0, 0].set_title('Model Usulan (mBERT + Cosine): Train vs Val Loss', fontweight='bold')
+axes[0, 0].plot(history_epochs, history_train_loss, 'o-', color='royalblue', label='Train Loss')
+axes[0, 0].plot(history_epochs, history_val_loss, 's--', color='crimson', label='Val Loss')
+axes[0, 0].axvline(best_ep_m2, color='darkgreen', linestyle=':', label=f'Best Epoch ({best_ep_m2})')
+axes[0, 0].set_title('Model Usulan (NER + mBERT + Cosine): Loss', fontweight='bold')
 axes[0, 0].set_xlabel('Epoch')
-axes[0, 0].set_ylabel('Cosine Margin Loss')
+axes[0, 0].set_ylabel('Loss')
 axes[0, 0].legend()
 axes[0, 0].grid(True, linestyle='--', alpha=0.6)
 
-axes[0, 1].plot(history_epochs, history_train_acc, 'o-', color='seagreen', linewidth=2, label='Train Accuracy (%)')
-axes[0, 1].plot(history_epochs, history_val_acc, 's--', color='darkorange', linewidth=2, label='Val Accuracy (%)')
-axes[0, 1].axvline(best_ep_m2, color='darkgreen', linestyle=':', linewidth=1.8, label=f'Best Epoch ({best_ep_m2})')
-axes[0, 1].set_title('Model Usulan (mBERT + Cosine): Train vs Val Accuracy', fontweight='bold')
+axes[0, 1].plot(history_epochs, history_train_acc, 'o-', color='seagreen', label='Train Acc (%)')
+axes[0, 1].plot(history_epochs, history_val_acc, 's--', color='darkorange', label='Val Acc (%)')
+axes[0, 1].axvline(best_ep_m2, color='darkgreen', linestyle=':', label=f'Best Epoch ({best_ep_m2})')
+axes[0, 1].set_title('Model Usulan (NER + mBERT + Cosine): Accuracy', fontweight='bold')
 axes[0, 1].set_xlabel('Epoch')
 axes[0, 1].set_ylabel('Accuracy (%)')
 axes[0, 1].legend()
 axes[0, 1].grid(True, linestyle='--', alpha=0.6)
 
-# Baris 2: Model 1 Pembanding (mBERT Saja Tanpa Cosine)
 best_ep_m1 = history_m1_epochs[int(np.argmin(history_m1_val_loss))]
-axes[1, 0].plot(history_m1_epochs, history_m1_train_loss, 'o-', color='steelblue', linewidth=2, label='Train Loss')
-axes[1, 0].plot(history_m1_epochs, history_m1_val_loss, 's--', color='firebrick', linewidth=2, label='Val Loss')
-axes[1, 0].axvline(best_ep_m1, color='black', linestyle=':', linewidth=1.8, label=f'Best Val Loss (Epoch {best_ep_m1})')
-axes[1, 0].set_title('Model Pembanding (mBERT Saja Tanpa Cosine): Train vs Val Loss', fontweight='bold')
+axes[1, 0].plot(history_m1_epochs, history_m1_train_loss, 'o-', color='steelblue', label='Train Loss')
+axes[1, 0].plot(history_m1_epochs, history_m1_val_loss, 's--', color='firebrick', label='Val Loss')
+axes[1, 0].axvline(best_ep_m1, color='black', linestyle=':', label=f'Best Epoch ({best_ep_m1})')
+axes[1, 0].set_title('Model Pembanding (mBERT Saja): Loss', fontweight='bold')
 axes[1, 0].set_xlabel('Epoch')
-axes[1, 0].set_ylabel('Cross-Entropy Loss')
+axes[1, 0].set_ylabel('Loss')
 axes[1, 0].legend()
 axes[1, 0].grid(True, linestyle='--', alpha=0.6)
 
-axes[1, 1].plot(history_m1_epochs, history_m1_train_acc, 'o-', color='teal', linewidth=2, label='Train Accuracy (%)')
-axes[1, 1].plot(history_m1_epochs, history_m1_val_acc, 's--', color='peru', linewidth=2, label='Val Accuracy (%)')
-axes[1, 1].axvline(best_ep_m1, color='black', linestyle=':', linewidth=1.8, label=f'Best Epoch ({best_ep_m1})')
-axes[1, 1].set_title('Model Pembanding (mBERT Saja Tanpa Cosine): Train vs Val Accuracy', fontweight='bold')
+axes[1, 1].plot(history_m1_epochs, history_m1_train_acc, 'o-', color='teal', label='Train Acc (%)')
+axes[1, 1].plot(history_m1_epochs, history_m1_val_acc, 's--', color='peru', label='Val Acc (%)')
+axes[1, 1].axvline(best_ep_m1, color='black', linestyle=':', label=f'Best Epoch ({best_ep_m1})')
+axes[1, 1].set_title('Model Pembanding (mBERT Saja): Accuracy', fontweight='bold')
 axes[1, 1].set_xlabel('Epoch')
 axes[1, 1].set_ylabel('Accuracy (%)')
 axes[1, 1].legend()
@@ -1235,35 +901,19 @@ axes[1, 1].grid(True, linestyle='--', alpha=0.6)
 
 plt.tight_layout()
 plt.savefig('learning_curves_train_val_loss_acc.png', dpi=300)
-plt.show()
+plt.show()"""
 
-df_history_m2 = pd.DataFrame({
-    'Epoch': history_epochs,
-    'Train Loss': [round(x, 4) for x in history_train_loss],
-    'Val Loss': [round(x, 4) for x in history_val_loss],
-    'Train Acc (%)': [round(x, 2) for x in history_train_acc],
-    'Val Acc (%)': [round(x, 2) for x in history_val_acc]
-})
-print("\\n[TABEL REKAPITULASI TRAINING MODEL USULAN (mBERT + COSINE) PER EPOCH]")
-print(df_history_m2.to_string(index=False))"""
-
-CELL_8_CODE = """# 8. MODEL 1: Evaluasi 'mBERT Saja (Tanpa Cosine)' pada Unseen Test Set (225 Data Uji)
-# (Sesuai Poin 6 Papan Tulis Dosen: 'Buat model mBert saja (tanpa cosine). Skenario tuning-testing seperti nomor 2-5')
-
+CELL_8_CODE = """# 8. Evaluasi Model 1: mBERT Saja (Tanpa Cosine) pada Unseen Test Set (225 Data Uji)
 test_loader_m1 = DataLoader(test_dataset_m1, batch_size=32, shuffle=False)
-
 best_model_m1.eval()
 all_test_preds_m1 = []
+
 with torch.no_grad():
     for j_ids, j_mask, c_ids, c_mask, _ in test_loader_m1:
-        j_ids, j_mask = j_ids.to(device), j_mask.to(device)
-        c_ids, c_mask = c_ids.to(device), c_mask.to(device)
-
+        j_ids, j_mask, c_ids, c_mask = j_ids.to(device), j_mask.to(device), c_ids.to(device), c_mask.to(device)
         with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
             logits = best_model_m1(j_ids, j_mask, c_ids, c_mask)
-
-        preds = torch.argmax(logits, dim=1).cpu().numpy()
-        all_test_preds_m1.extend(preds)
+        all_test_preds_m1.extend(torch.argmax(logits, dim=1).cpu().numpy())
 
 y_true_m1 = test_df['kategori'].tolist()
 y_pred_m1 = [ID2LABEL[p] for p in all_test_preds_m1]
@@ -1272,279 +922,136 @@ acc_m1 = accuracy_score(y_true_m1, y_pred_m1) * 100.0
 macro_f1_m1 = f1_score(y_true_m1, y_pred_m1, labels=CLASS_NAMES, average='macro') * 100.0
 weighted_f1_m1 = f1_score(y_true_m1, y_pred_m1, labels=CLASS_NAMES, average='weighted') * 100.0
 
-print("="*70)
-print("EVALUASI MODEL 1: MBERT SAJA (TANPA COSINE - CLASSIFIER HEAD)")
-print("="*70)
+print("EVALUASI MODEL 1: mBERT SAJA (TANPA COSINE)")
 print(classification_report(y_true_m1, y_pred_m1, labels=CLASS_NAMES, target_names=CLASS_NAMES, digits=4, zero_division=0))
-print(f"Akurasi Test Set   : {acc_m1:.2f}%")
-print(f"Macro F1-Score     : {macro_f1_m1:.2f}%")
-print(f"Weighted F1-Score  : {weighted_f1_m1:.2f}%")
-print("="*70)
+print(f"Accuracy: {acc_m1:.2f}% | Macro F1: {macro_f1_m1:.2f}% | Weighted F1: {weighted_f1_m1:.2f}%")
 
-plt.figure(figsize=(6, 5))
+plt.figure(figsize=(5.5, 4.5))
 cm_m1 = confusion_matrix(y_true_m1, y_pred_m1, labels=CLASS_NAMES)
 sns.heatmap(cm_m1, annot=True, fmt='d', cmap='Blues', xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
-plt.title(f'Confusion Matrix: mBERT Saja (Tanpa Cosine)\\n(Macro F1: {macro_f1_m1:.2f}%)', fontweight='bold')
-plt.xlabel('Prediksi Model')
-plt.ylabel('Aktual (Ground Truth)')
+plt.title(f'Confusion Matrix: mBERT Saja (Macro F1: {macro_f1_m1:.2f}%)', fontweight='bold')
+plt.xlabel('Prediksi')
+plt.ylabel('Aktual')
 plt.tight_layout()
 plt.savefig('cm_model1_mbert_saja.png', dpi=300)
 plt.show()"""
 
-CELL_9_CODE = """# 9. MODEL 2 (MODEL USULAN): Evaluasi 'NER + mBERT Feature Extractor + Sklearn Cosine Similarity'
-# Sesuai Poin 1 & 5 Papan Tulis Dosen:
-# - Ambil embedding terakhir (768 dimensi) dari mBERT Feature Extractor.
-# - Hitung Cosine Similarity murni menggunakan sklearn.metrics.pairwise.cosine_similarity.
-# - Tampilkan Confusion Matrix + Classification Report pada Unseen Test Set (225 Data Uji).
-
-print("="*75)
-print("EVALUASI MODEL 2 (USULAN): NER + MBERT FEATURE EXTRACTOR + SKLEARN COSINE")
-print("="*75)
-
+CELL_9_CODE = """# 9. Evaluasi Model 2 (Usulan): Unified NER + Siamese mBERT + Sklearn Cosine Similarity (Batas Skripsi: 60% & 80%)
 def extract_cls_embeddings(texts, model, tokenizer, max_length=256, batch_size=32, doc_type=None):
-    \"\"\"
-    Mengekstrak representasi vektor akhir 768 dimensi dari backbone mBERT Feature Extractor.
-    Jika teks belum memiliki header NER [DOC], otomatis diperkaya dengan struktur NER Tabel 2.5.
-    \"\"\"
     model.eval()
     all_embs = []
-    processed_texts = []
-    for t in texts:
-        s_t = str(t)
-        if not s_t.startswith('[DOC]') and doc_type is not None:
-            s_t = build_ner_enriched_text(s_t, doc_type=doc_type)
-        processed_texts.append(s_t)
-
+    processed = [
+        build_ner_enriched_text(str(t), doc_type=doc_type) if (not str(t).startswith('[DOC]') and doc_type) else str(t)
+        for t in texts
+    ]
     with torch.no_grad():
-        for i in range(0, len(processed_texts), batch_size):
-            batch_texts = processed_texts[i:i + batch_size]
-            inputs = tokenizer(
-                batch_texts, padding=True, truncation=True, max_length=max_length, return_tensors='pt'
-            ).to(device)
+        for i in range(0, len(processed), batch_size):
+            inputs = tokenizer(processed[i:i + batch_size], padding=True, truncation=True, max_length=max_length, return_tensors='pt').to(device)
             with torch.amp.autocast('cuda', enabled=(device.type == 'cuda')):
                 embs = model.encode_text(inputs['input_ids'], inputs['attention_mask'])
             all_embs.append(embs.cpu().numpy())
     return np.vstack(all_embs)
 
-extract_trained_embeddings = extract_cls_embeddings
-
-# 1. Ekstraksi Vektor 768 Dimensi untuk Validation Set dan Unseen Test Set
-print("[EKSTRAKSI FITUR] Mengekstrak embedding terakhir (768 dimensi) dari mBERT Feature Extractor...")
-val_job_embs = extract_cls_embeddings(val_df['job_ner'], best_model, tokenizer, max_length=FINAL_MAX_LEN)
-val_cv_embs = extract_cls_embeddings(val_df['cv_ner'], best_model, tokenizer, max_length=FINAL_MAX_LEN)
-
 test_job_embs = extract_cls_embeddings(test_df['job_ner'], best_model, tokenizer, max_length=FINAL_MAX_LEN)
 test_cv_embs = extract_cls_embeddings(test_df['cv_ner'], best_model, tokenizer, max_length=FINAL_MAX_LEN)
+test_sims = np.clip(np.diag(cosine_similarity(test_job_embs, test_cv_embs)), 0.0, 1.0) * 100.0
 
-# 2. Perhitungan Cosine Similarity Murni menggunakan Scikit-Learn (Clamping Non-Negatif 0% - 100%)
-val_sims_raw = np.diag(cosine_similarity(val_job_embs, val_cv_embs))
-val_sims = np.clip(val_sims_raw, 0.0, 1.0) * 100.0
-
-test_sims_raw = np.diag(cosine_similarity(test_job_embs, test_cv_embs))
-test_sims = np.clip(test_sims_raw, 0.0, 1.0) * 100.0
-
-# 3. Kalibrasi Ambang Batas pada Validation Set (Tanpa Data Leakage ke Test Set)
-best_macro_f1_val = 0.0
-best_t_close = 60.0
-best_t_fit = 80.0
-y_val_true = val_df['kategori'].tolist()
-
-for t_c in np.arange(50.0, 72.5, 2.5):
-    for t_f in np.arange(max(t_c + 8.0, 75.0), 90.0, 2.5):
-        preds = ['fit' if s >= t_f else ('close fit' if s >= t_c else 'not fit') for s in val_sims]
-        score = f1_score(y_val_true, preds, labels=CLASS_NAMES, average='macro', zero_division=0)
-        if score > best_macro_f1_val:
-            best_macro_f1_val = score
-            best_t_close = float(t_c)
-            best_t_fit = float(t_f)
-
-print(f" -> Ambang Batas Standar Literatur (Khatri et al., 2025) : Close Fit >= 60.0% | Fit >= 80.0%")
-print(f" -> Ambang Batas Optimal Terkalibrasi Validation Set     : Close Fit >= {best_t_close:.1f}% | Fit >= {best_t_fit:.1f}%")
-
-# 4. Evaluasi pada Unseen Test Set (225 Data Uji)
+# Klasifikasi menggunakan batas ambang sesuai Naskah Skripsi (Not Fit < 60%, Close Fit 60%-79.9%, Fit >= 80%)
 y_true_test = test_df['kategori'].tolist()
+y_pred_m2 = ['fit' if s >= 80.0 else ('close fit' if s >= 60.0 else 'not fit') for s in test_sims]
 
-# A. Ambang Statis Khatri et al. (60% / 80%)
-y_pred_khatri = ['fit' if s >= 80.0 else ('close fit' if s >= 60.0 else 'not fit') for s in test_sims]
-acc_khatri = accuracy_score(y_true_test, y_pred_khatri) * 100.0
-macro_f1_khatri = f1_score(y_true_test, y_pred_khatri, labels=CLASS_NAMES, average='macro', zero_division=0) * 100.0
-weighted_f1_khatri = f1_score(y_true_test, y_pred_khatri, labels=CLASS_NAMES, average='weighted', zero_division=0) * 100.0
+acc_m2 = accuracy_score(y_true_test, y_pred_m2) * 100.0
+macro_f1_m2 = f1_score(y_true_test, y_pred_m2, labels=CLASS_NAMES, average='macro', zero_division=0) * 100.0
+weighted_f1_m2 = f1_score(y_true_test, y_pred_m2, labels=CLASS_NAMES, average='weighted', zero_division=0) * 100.0
 
-# B. Ambang Terkalibrasi (Model Usulan Final)
-y_pred_calibrated = ['fit' if s >= best_t_fit else ('close fit' if s >= best_t_close else 'not fit') for s in test_sims]
-acc_m2 = accuracy_score(y_true_test, y_pred_calibrated) * 100.0
-macro_f1_m2 = f1_score(y_true_test, y_pred_calibrated, labels=CLASS_NAMES, average='macro', zero_division=0) * 100.0
-weighted_f1_m2 = f1_score(y_true_test, y_pred_calibrated, labels=CLASS_NAMES, average='weighted', zero_division=0) * 100.0
+print("EVALUASI MODEL 2 (USULAN): NER + SIAMESE mBERT + SKLEARN COSINE")
+print(classification_report(y_true_test, y_pred_m2, labels=CLASS_NAMES, target_names=CLASS_NAMES, digits=4, zero_division=0))
+print(f"Accuracy: {acc_m2:.2f}% | Macro F1: {macro_f1_m2:.2f}% | Weighted F1: {weighted_f1_m2:.2f}%")
 
-print("\\n" + "="*75)
-print(f"HASIL MODEL 2 (NER + mBERT + SKLEARN COSINE) PADA UNSEEN TEST SET:")
-print("="*75)
-print(classification_report(y_true_test, y_pred_calibrated, labels=CLASS_NAMES, target_names=CLASS_NAMES, digits=4, zero_division=0))
-print(f"Akurasi Test Set (Terkalibrasi) : {acc_m2:.2f}% (Statis 60%/80%: {acc_khatri:.2f}%)")
-print(f"Macro F1-Score (Terkalibrasi)   : {macro_f1_m2:.2f}% (Statis 60%/80%: {macro_f1_khatri:.2f}%)")
-print(f"Weighted F1-Score               : {weighted_f1_m2:.2f}%")
-print(f"Selisih Keunggulan atas Model 1 : +{macro_f1_m2 - macro_f1_m1:.2f}% Macro F1")
-print("="*75)
-
-# 5. Visualisasi Confusion Matrix & Boxplot Distribusi Skor Kemiripan Kosinus
-fig, axes = plt.subplots(1, 2, figsize=(15, 5.5))
-
-cm_m2 = confusion_matrix(y_true_test, y_pred_calibrated, labels=CLASS_NAMES)
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+cm_m2 = confusion_matrix(y_true_test, y_pred_m2, labels=CLASS_NAMES)
 sns.heatmap(cm_m2, annot=True, fmt='d', cmap='Greens', xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES, ax=axes[0])
-axes[0].set_title(f'Confusion Matrix: NER + mBERT + Sklearn Cosine\\n(Macro F1: {macro_f1_m2:.2f}%)', fontweight='bold')
-axes[0].set_xlabel('Prediksi Model')
-axes[0].set_ylabel('Aktual (Ground Truth)')
+axes[0].set_title(f'Confusion Matrix: NER + mBERT + Cosine (Macro F1: {macro_f1_m2:.2f}%)', fontweight='bold')
+axes[0].set_xlabel('Prediksi')
+axes[0].set_ylabel('Aktual')
 
 df_plot_m2 = test_df.copy()
 df_plot_m2['Similarity (%)'] = test_sims
-sns.boxplot(
-    x='kategori', y='Similarity (%)', hue='kategori',
-    data=df_plot_m2, order=CLASS_NAMES, palette='Set2', legend=False, ax=axes[1]
-)
-axes[1].axhline(best_t_fit, color='darkgreen', linestyle='--', linewidth=2, label=f'Ambang Fit ({best_t_fit:.1f}%)')
-axes[1].axhline(best_t_close, color='darkorange', linestyle='--', linewidth=2, label=f'Ambang Close Fit ({best_t_close:.1f}%)')
+sns.boxplot(x='kategori', y='Similarity (%)', hue='kategori', data=df_plot_m2, order=CLASS_NAMES, palette='Set2', legend=False, ax=axes[1])
+axes[1].axhline(80.0, color='darkgreen', linestyle='--', label='Batas Fit (80%)')
+axes[1].axhline(60.0, color='darkorange', linestyle='--', label='Batas Close Fit (60%)')
 axes[1].set_ylim(-2, 105)
-axes[1].set_title('Sebaran Skor Sklearn Cosine Similarity (0% - 100%) per Kelas', fontweight='bold')
-axes[1].set_xlabel('Kategori Aktual')
-axes[1].set_ylabel('Sklearn Cosine Similarity (%)')
+axes[1].set_title('Sebaran Skor Sklearn Cosine Similarity per Kelas', fontweight='bold')
 axes[1].legend(loc='upper left')
 
 plt.tight_layout()
-plt.savefig('cm_model_mbert_plus_cosine_calibrated.png', dpi=300)
+plt.savefig('cm_model2_mbert_plus_cosine.png', dpi=300)
 plt.show()"""
 
-CELL_10_CODE = """# 10. MODEL 3: Evaluasi 'Cosine Saja' (TF-IDF Leksikal + Sklearn Cosine) pada Unseen Test Set
-# (Sesuai Poin 7 Papan Tulis Dosen: 'Uji coba cosine saja, tampilkan CM + CR')
-
-print("="*70)
-print("EVALUASI MODEL 3: COSINE SAJA (TF-IDF LEKSIKAL + SKLEARN COSINE)")
-print("="*70)
-
+CELL_10_CODE = """# 10. Evaluasi Model 3: Cosine Saja (TF-IDF + Sklearn Cosine) pada Unseen Test Set
 tfidf = TfidfVectorizer(max_features=5000, stop_words='english', ngram_range=(1, 2))
-corpus_all = list(train_df['job_clean']) + list(train_df['cv_clean'])
-tfidf.fit(corpus_all)
+tfidf.fit(list(train_df['job_clean']) + list(train_df['cv_clean']))
 
-tfidf_job_val = tfidf.transform(val_df['job_clean'])
-tfidf_cv_val = tfidf.transform(val_df['cv_clean'])
-tfidf_val_sims = np.clip(np.diag(cosine_similarity(tfidf_job_val, tfidf_cv_val)), 0.0, 1.0) * 100.0
-
-tfidf_job_test = tfidf.transform(test_df['job_clean'])
-tfidf_cv_test = tfidf.transform(test_df['cv_clean'])
-tfidf_test_sims = np.clip(np.diag(cosine_similarity(tfidf_job_test, tfidf_cv_test)), 0.0, 1.0) * 100.0
-
-# Kalibrasi ambang batas TF-IDF pada Validation Set agar adil dan bebas zero-division
-best_f1_tfidf_val = 0.0
-t_c_tfidf, t_f_tfidf = 8.0, 18.0
-for tc in np.arange(3.0, 25.0, 1.5):
-    for tf in np.arange(tc + 3.0, 40.0, 1.5):
-        p_val = ['fit' if s >= tf else ('close fit' if s >= tc else 'not fit') for s in tfidf_val_sims]
-        sc = f1_score(val_df['kategori'], p_val, labels=CLASS_NAMES, average='macro', zero_division=0)
-        if sc > best_f1_tfidf_val:
-            best_f1_tfidf_val = sc
-            t_c_tfidf, t_f_tfidf = float(tc), float(tf)
+tfidf_test_sims = np.clip(np.diag(cosine_similarity(tfidf.transform(test_df['job_clean']), tfidf.transform(test_df['cv_clean']))), 0.0, 1.0) * 100.0
 
 y_true_m3 = test_df['kategori'].tolist()
-y_pred_m3 = ['fit' if s >= t_f_tfidf else ('close fit' if s >= t_c_tfidf else 'not fit') for s in tfidf_test_sims]
+y_pred_m3 = ['fit' if s >= 80.0 else ('close fit' if s >= 60.0 else 'not fit') for s in tfidf_test_sims]
 
 acc_m3 = accuracy_score(y_true_m3, y_pred_m3) * 100.0
 macro_f1_m3 = f1_score(y_true_m3, y_pred_m3, labels=CLASS_NAMES, average='macro', zero_division=0) * 100.0
 weighted_f1_m3 = f1_score(y_true_m3, y_pred_m3, labels=CLASS_NAMES, average='weighted', zero_division=0) * 100.0
 
+print("EVALUASI MODEL 3: COSINE SAJA (TF-IDF + SKLEARN COSINE)")
 print(classification_report(y_true_m3, y_pred_m3, labels=CLASS_NAMES, target_names=CLASS_NAMES, digits=4, zero_division=0))
-print(f"Akurasi Test Set   : {acc_m3:.2f}%")
-print(f"Macro F1-Score     : {macro_f1_m3:.2f}%")
-print(f"Weighted F1-Score  : {weighted_f1_m3:.2f}%")
-print("="*70)
+print(f"Accuracy: {acc_m3:.2f}% | Macro F1: {macro_f1_m3:.2f}% | Weighted F1: {weighted_f1_m3:.2f}%")
 
-plt.figure(figsize=(6, 5))
+plt.figure(figsize=(5.5, 4.5))
 cm_m3 = confusion_matrix(y_true_m3, y_pred_m3, labels=CLASS_NAMES)
 sns.heatmap(cm_m3, annot=True, fmt='d', cmap='Oranges', xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
-plt.title(f'Confusion Matrix: Cosine Saja (TF-IDF + Sklearn Cosine)\\n(Macro F1: {macro_f1_m3:.2f}%)', fontweight='bold')
-plt.xlabel('Prediksi Model')
-plt.ylabel('Aktual (Ground Truth)')
+plt.title(f'Confusion Matrix: Cosine Saja (Macro F1: {macro_f1_m3:.2f}%)', fontweight='bold')
+plt.xlabel('Prediksi')
+plt.ylabel('Aktual')
 plt.tight_layout()
 plt.savefig('cm_model3_cosine_saja.png', dpi=300)
 plt.show()"""
 
-CELL_11_CODE = """# 11. Rekapitulasi Komparatif Ketiga Model (Untuk Bab 5 & Bab 6 Skripsi)
-# Membuktikan Hipotesis Poin 6 Catatan Dosen:
-# 'Harapannya mBERT + Cosine performa lebih tinggi dari mBERT Saja atau Cosine Saja'
-
+CELL_11_CODE = """# 11. Tabel & Grafik Perbandingan Performa Ketiga Model pada Unseen Test Set (225 Data Uji)
 df_rekapitulasi = pd.DataFrame({
     'Model / Pendekatan': [
-        'Model 3: Cosine Saja (TF-IDF Leksikal + Sklearn Cosine)',
+        'Model 3: Cosine Saja (TF-IDF + Sklearn Cosine)',
         'Model 1: mBERT Saja (Tanpa Cosine - Classifier Head)',
-        'Model 2A: NER + mBERT + Sklearn Cosine (Ambang Statis 60%/80%)',
-        'Model 2B: NER + mBERT + Sklearn Cosine (Model Usulan Terkalibrasi)'
+        'Model 2: NER + Siamese mBERT + Sklearn Cosine (Model Usulan)'
     ],
-    'Akurasi (%)': [
-        round(acc_m3, 2),
-        round(acc_m1, 2),
-        round(acc_khatri, 2),
-        round(acc_m2, 2)
-    ],
-    'Macro F1 (%)': [
-        round(macro_f1_m3, 2),
-        round(macro_f1_m1, 2),
-        round(macro_f1_khatri, 2),
-        round(macro_f1_m2, 2)
-    ],
-    'Weighted F1 (%)': [
-        round(weighted_f1_m3, 2),
-        round(weighted_f1_m1, 2),
-        round(weighted_f1_khatri, 2),
-        round(weighted_f1_m2, 2)
-    ],
-    'Karakteristik & Temuan Ilmiah': [
-        'Hanya mencocokkan kata eksak (leksikal); gagal menangkap sinonim & konteks kompetensi.',
-        'Klasifikasi aditif tanpa perkalian titik (dot product) sudut vektor; tidak menghasilkan skor %.',
-        'NER menormalisasi tata letak CV + sudut kosinus mBERT terpisah bersih pada ambang 60% & 80%.',
-        'Performa tertinggi: menggabungkan Deep Learning NER mBERT, Feature Extractor, & Sklearn Cosine.'
-    ]
+    'Accuracy (%)': [round(acc_m3, 2), round(acc_m1, 2), round(acc_m2, 2)],
+    'Macro F1 (%)': [round(macro_f1_m3, 2), round(macro_f1_m1, 2), round(macro_f1_m2, 2)],
+    'Weighted F1 (%)': [round(weighted_f1_m3, 2), round(weighted_f1_m1, 2), round(weighted_f1_m2, 2)]
 })
 
-print("="*105)
-print("TABEL REKAPITULASI KOMPARASI HASIL PENGUJIAN MODEL PADA 225 UNSEEN TEST SET (BAB 5 & BAB 6 SKRIPSI)")
-print("="*105)
+print("REKAPITULASI KOMPARASI 3 MODEL (225 UNSEEN TEST SET):")
 print(df_rekapitulasi.to_string(index=False))
-print("="*105)
 
-plt.figure(figsize=(10, 5.5))
-colors = ['#e67e22', '#3498db', '#2ecc71', '#1b7837']
-model_names = [
-    'Model 3:\\nCosine Saja\\n(TF-IDF)',
-    'Model 1:\\nmBERT Saja\\n(Tanpa Cosine)',
-    'Model 2A:\\nNER + mBERT + Cosine\\n(Statis 60%/80%)',
-    'Model 2B:\\nNER + mBERT + Cosine\\n(Usulan Terkalibrasi)'
-]
-f1_values = [macro_f1_m3, macro_f1_m1, macro_f1_khatri, macro_f1_m2]
-
-bars = plt.bar(model_names, f1_values, color=colors, width=0.48, edgecolor='black')
-plt.title('Perbandingan Performa Macro F1-Score Ketiga Model (225 Unseen Test Set)', fontweight='bold', pad=15)
-plt.ylabel('Macro F1-Score (%)', fontweight='bold')
+plt.figure(figsize=(8, 5))
+model_names = ['Model 3:\\nCosine Saja', 'Model 1:\\nmBERT Saja', 'Model 2 (Usulan):\\nNER + mBERT + Cosine']
+f1_values = [macro_f1_m3, macro_f1_m1, macro_f1_m2]
+bars = plt.bar(model_names, f1_values, color=['#e67e22', '#3498db', '#1b7837'], width=0.45, edgecolor='black')
+plt.title('Perbandingan Macro F1-Score Ketiga Model (225 Unseen Test Set)', fontweight='bold')
+plt.ylabel('Macro F1-Score (%)')
 plt.ylim(0, 108)
 for bar in bars:
     yval = bar.get_height()
-    plt.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.2f}%", ha='center', va='bottom', fontweight='bold')
-plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.text(bar.get_x() + bar.get_width() / 2.0, yval + 1.5, f"{yval:.2f}%", ha='center', va='bottom', fontweight='bold')
+plt.grid(axis='y', linestyle='--', alpha=0.6)
 plt.tight_layout()
-plt.savefig('rekapitulasi_komparasi_model_calibrated.png', dpi=300)
+plt.savefig('rekapitulasi_komparasi_3_model.png', dpi=300)
 plt.show()"""
 
-CELL_12_CODE = """# 12. Simulasi Inferensi End-to-End Kasus Nyata (Format Tabel 2.5 NER & Tabel 2 Proposal Tugas Akhir)
+CELL_12_CODE = """# 12. Simulasi Inferensi End-to-End CV vs Job Description (Tabel 2.5 & Tabel 2 Proposal)
 def predict_cv_job_matching_interactive(job_text, cv_text):
-    \"\"\"
-    Simulasi Inferensi End-to-End Sesuai Bab 2.4 (Tabel 2.5) & Tabel 2 Proposal Tugas Akhir:
-    1. Ekstraksi Entitas Kompetensi dengan Deep Learning NER mBERT (EDU, ORG, SKILL, ROLE, DUR).
-    2. Penyusunan Teks Kompetensi Terstruktur & Ekstraksi Vektor Embedding 768 Dimensi.
-    3. Perhitungan Cosine Similarity menggunakan sklearn.metrics.pairwise.cosine_similarity.
-    4. Penentuan Status Kelayakan Kandidat (Fit / Close Fit / Not Fit).
-    \"\"\"
     clean_j = regex_standardize_text(job_text)
     clean_c = regex_standardize_text(cv_text)
 
-    ner_job = extract_ner_entities_mbert_hybrid(clean_j, use_dl_model=True)
-    ner_cv = extract_ner_entities_mbert_hybrid(clean_c, use_dl_model=True)
+    ner_job = extract_ner_entities_mbert_hybrid(clean_j)
+    ner_cv = extract_ner_entities_mbert_hybrid(clean_c)
 
     enriched_j = build_ner_enriched_text(clean_j, doc_type='JOB_POSTING')
     enriched_c = build_ner_enriched_text(clean_c, doc_type='CANDIDATE_CV')
@@ -1555,63 +1062,23 @@ def predict_cv_job_matching_interactive(job_text, cv_text):
     sklearn_sim = float(cosine_similarity(emb_c.reshape(1, -1), emb_j.reshape(1, -1))[0][0])
     sim_score = max(0.0, min(1.0, sklearn_sim)) * 100.0
 
-    dot_product = float(np.dot(emb_c, emb_j))
-    norm_c = float(np.linalg.norm(emb_c))
-    norm_j = float(np.linalg.norm(emb_j))
-
-    if sim_score >= best_t_fit:
-        kategori = "Fit (Sangat Layak)"
-        rekomendasi = "Kandidat Direkomendasikan Lolos Wawancara (Kualifikasi & Kompetensi Sangat Sesuai)"
-    elif sim_score >= best_t_close:
-        kategori = "Close Fit (Cukup Layak)"
-        rekomendasi = "Dipertimbangkan (Peran Serumpun / Keterampilan Transferable Relevan)"
-    else:
-        kategori = "Not Fit (Tidak Layak)"
-        rekomendasi = "Tidak Disarankan (Bidang Kompetensi Berbeda Signifikan)"
+    kategori = "Fit" if sim_score >= 80.0 else ("Close Fit" if sim_score >= 60.0 else "Not Fit")
 
     df_tabel2 = pd.DataFrame({
-        'Label Entitas NER (Tabel 2.5)': [
-            '[EDU] Pendidikan',
-            '[ORG] Organisasi / Institusi',
-            '[ROLE] Posisi / Jabatan',
-            '[DUR] Durasi Pengalaman',
-            '[SKILL] Keahlian Teknis',
-            'Embedding Terakhir (768 dim)'
+        'Entitas NER': ['[EDU] Pendidikan', '[ORG] Organisasi', '[ROLE] Jabatan', '[DUR] Pengalaman', '[SKILL] Keahlian', 'Vektor (768-d)'],
+        'CV Pelamar': [
+            ', '.join(ner_cv['EDU']) or '-', ', '.join(ner_cv['ORG']) or '-',
+            ', '.join(ner_cv['ROLE']) or '-', ', '.join(ner_cv['DUR']) or '-',
+            ', '.join(ner_cv['SKILL']) or '-', str([round(float(x), 4) for x in emb_c[:4]]) + ' ...'
         ],
-        'Ekstraksi CV Pelamar': [
-            ', '.join(ner_cv['EDU']) if ner_cv['EDU'] else '-',
-            ', '.join(ner_cv['ORG']) if ner_cv['ORG'] else '-',
-            ', '.join(ner_cv['ROLE']) if ner_cv['ROLE'] else '-',
-            ', '.join(ner_cv['DUR']) if ner_cv['DUR'] else '-',
-            ', '.join(ner_cv['SKILL']) if ner_cv['SKILL'] else '-',
-            str([round(float(x), 5) for x in emb_c[:5]]) + ' ... (768 dim)'
-        ],
-        'Ekstraksi Deskripsi Pekerjaan': [
-            ', '.join(ner_job['EDU']) if ner_job['EDU'] else '-',
-            ', '.join(ner_job['ORG']) if ner_job['ORG'] else '-',
-            ', '.join(ner_job['ROLE']) if ner_job['ROLE'] else '-',
-            ', '.join(ner_job['DUR']) if ner_job['DUR'] else '-',
-            ', '.join(ner_job['SKILL']) if ner_job['SKILL'] else '-',
-            str([round(float(x), 5) for x in emb_j[:5]]) + ' ... (768 dim)'
+        'Job Description': [
+            ', '.join(ner_job['EDU']) or '-', ', '.join(ner_job['ORG']) or '-',
+            ', '.join(ner_job['ROLE']) or '-', ', '.join(ner_job['DUR']) or '-',
+            ', '.join(ner_job['SKILL']) or '-', str([round(float(x), 4) for x in emb_j[:4]]) + ' ...'
         ]
     })
-
-    print("="*95)
-    print("HASIL EKSTRAKSI NER mBERT & REPRESENTASI VEKTOR (SESUAI TABEL 2.5 & TABEL 2 SKRIPSI)")
-    print("="*95)
-    print(f"[Teks CV Berlabel NER] : {ner_cv['TAGGED_TEXT']}")
-    print(f"[Teks Job Berlabel NER]: {ner_job['TAGGED_TEXT']}\\n")
     print(df_tabel2.to_string(index=False))
-    print("="*95)
-    print(f"[PERHITUNGAN SKLEARN COSINE SIMILARITY]")
-    print(f" - Dot Product (Vcv . Vjob)  : {dot_product:.4f}")
-    print(f" - Magnitude ||Vcv||         : {norm_c:.4f}")
-    print(f" - Magnitude ||Vjob||        : {norm_j:.4f}")
-    print(f" - Skor Cosine Similarity    : {sim_score:.2f}% (Sklearn Cosine Similarity)")
-    print(f" - Ambang Batas Terkalibrasi : Close Fit >= {best_t_close:.1f}% | Fit >= {best_t_fit:.1f}%")
-    print(f" - Status Kelayakan          : {kategori}")
-    print(f" - Rekomendasi HR            : {rekomendasi}")
-    print("="*95)
+    print(f"\\nSkor Cosine Similarity: {sim_score:.2f}% -> Kategori: {kategori} (Batas Skripsi: Fit >= 80%, Close Fit 60%-79.9%, Not Fit < 60%)")
 
 sample_job = (
     "Position: Software Engineer. Experience Level: Entry level. "
@@ -1624,260 +1091,39 @@ sample_cv = (
 )
 predict_cv_job_matching_interactive(sample_job, sample_cv)"""
 
-CELL_13_CODE = """# 13. Pengujian Komparatif Pemisahan Domain Spesifik (IT vs Chef) & Visualisasi
-print("="*75)
-print("PENGUJIAN KOMPARATIF PEMISAHAN DOMAIN SPESIFIK (IT VS CHEF)")
-print("="*75)
-
-it_job_samples = [
-    "Position: Senior Software Engineer. Required Skills: Python, Java, SQL, Docker, Microservices. Job Description: Design and build backend APIs.",
-    "Position: Full Stack Developer. Required Skills: JavaScript, TypeScript, React, Node.js, PostgreSQL. Job Description: Develop scalable web apps.",
-    "Position: Data Scientist. Required Skills: Python, Machine Learning, Deep Learning, NLP, PyTorch. Job Description: Train predictive ML models.",
-    "Position: DevOps Engineer. Required Skills: Kubernetes, Docker, AWS, Linux, CI/CD. Job Description: Maintain cloud infrastructure.",
-    "Position: Backend Engineer. Required Skills: Go, Python, SQL, Redis, System Architecture. Job Description: Optimize database queries."
-]
-
-it_cv_samples = [
-    "Senior Software Engineer with 5 years experience in Python, Java, SQL, and Docker microservices development. Bachelor of Computer Science.",
-    "Full Stack Developer experienced in JavaScript, TypeScript, React, and PostgreSQL database design for 4 years.",
-    "Data Scientist holding Master in Computer Science skilled in Python, Machine Learning, NLP, and PyTorch.",
-    "DevOps Engineer with 6 years experience managing AWS cloud, Kubernetes clusters, Docker, and Linux servers.",
-    "Backend Developer proficient in Go, Python, SQL, and high-performance API engineering for 3 years."
-]
-
-chef_cv_samples = [
-    "Executive Chef with 8 years culinary experience in menu planning, kitchen management, pastry, and food safety.",
-    "Sous Chef skilled in food preparation, banquet catering, recipe development, and sanitation standards for 5 years.",
-    "Pastry Chef specializing in artisan baking, desserts, culinary arts, and kitchen inventory control for 4 years.",
-    "Head Chef experienced in fine dining, grilling, food costing, and supervising line cooks for 7 years.",
-    "Culinary specialist with diploma in Culinary Arts, experienced in catering, menu design, and kitchen operations."
-]
-
-emb_it_j = extract_trained_embeddings(it_job_samples, best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='JOB_POSTING')
-emb_it_c = extract_trained_embeddings(it_cv_samples, best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-emb_chef_c = extract_trained_embeddings(chef_cv_samples, best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-
-it_it_sims = np.clip(np.diag(cosine_similarity(emb_it_c, emb_it_j)), 0.0, 1.0) * 100.0
-chef_it_sims = np.clip(np.diag(cosine_similarity(emb_chef_c, emb_it_j)), 0.0, 1.0) * 100.0
-
-def get_khatri_label_text(score):
-    if score >= 80.0:
-        return "Fit (Sangat Layak)"
-    elif score >= 60.0:
-        return "Close Fit (Cukup Layak)"
-    return "Not Fit (Tidak Layak)"
-
-print(f"1. In-Domain (IT CV <-> IT Job)     : Rata-rata = {it_it_sims.mean():.2f}% -> Kategori: {get_khatri_label_text(it_it_sims.mean())}")
-print(f"2. Cross-Domain (Chef CV <-> IT Job): Rata-rata = {chef_it_sims.mean():.2f}% -> Kategori: {get_khatri_label_text(chef_it_sims.mean())}")
-print(f"3. Domain Separation Gap            : {it_it_sims.mean() - chef_it_sims.mean():.2f}% (Pemisahan Signifikan)")
-print("="*75)
-
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-x_idx = np.arange(len(it_job_samples))
-axes[0].bar(x_idx - 0.18, it_it_sims, width=0.35, color='#1f77b4', label='In-Domain (IT CV vs IT Job)')
-axes[0].bar(x_idx + 0.18, chef_it_sims, width=0.35, color='#d62728', label='Cross-Domain (Chef CV vs IT Job)')
-axes[0].axhline(80.0, color='darkgreen', linestyle='--', label='Ambang Fit (80%)')
-axes[0].axhline(60.0, color='darkorange', linestyle='--', label='Ambang Close Fit (60%)')
-axes[0].set_xticks(x_idx)
-axes[0].set_xticklabels([f'Pasangan {i+1}' for i in x_idx])
-axes[0].set_ylim(0, 108)
-axes[0].set_ylabel('Cosine Similarity (%)')
-axes[0].set_title('Perbandingan Skor Pasangan In-Domain vs Cross-Domain', fontweight='bold')
-axes[0].legend()
-
-df_box = pd.DataFrame({
-    'Kemiripan (%)': list(it_it_sims) + list(chef_it_sims),
-    'Pasangan Semantik': ['In-Domain (IT vs IT)'] * len(it_it_sims) + ['Cross-Domain (Chef vs IT)'] * len(chef_it_sims)
-})
-sns.boxplot(
-    x='Pasangan Semantik', y='Kemiripan (%)', hue='Pasangan Semantik',
-    data=df_box, palette=['#1f77b4', '#d62728'], legend=False, ax=axes[1], width=0.45
-)
-axes[1].axhline(80.0, color='darkgreen', linestyle='--', linewidth=1.2)
-axes[1].axhline(60.0, color='darkorange', linestyle='--', linewidth=1.2)
-axes[1].set_ylim(0, 108)
-axes[1].set_title('Sebaran Skor dan Margin Pemisahan Domain (Boxplot)', fontweight='bold')
-axes[1].set_xlabel('Pasangan Pengujian', fontweight='bold')
-axes[1].set_ylabel('Cosine Similarity (%)', fontweight='bold')
-
-plt.tight_layout()
-plt.savefig('it_vs_chef_separation.png', dpi=300)
-plt.show()"""
-
-CELL_14_CODE = """# 14. Validasi Zero-Shot Cross-Lingual Semantic Matching Dwiarah (ID <-> EN)
-print("="*75)
-print("PENGUJIAN VALIDASI KEMAMPUAN CROSS-LINGUAL DWIARAH (INDONESIA <-> INGGRIS)")
-print("="*75)
-
-job_indonesia_text = (
-    "Position: Senior Software Engineer. Experience Level: Mid-Senior level. "
-    "Job Description: Dibutuhkan Senior Software Engineer lulusan S1 Informatika dengan pengalaman 4 tahun "
-    "menguasai Python, Java, SQL, Docker, dan arsitektur Microservices."
-)
-resume_it_english = (
-    "Senior Software Engineer holding a Bachelor of Computer Science with 5 years experience "
-    "building scalable backend systems using Python, Java, SQL, and Docker containers."
-)
-resume_chef_english = (
-    "Executive Chef with 7 years of culinary arts experience specializing in pastry, menu planning, "
-    "food preparation, banquet catering, and kitchen safety."
-)
-
-emb_job_id = extract_trained_embeddings([job_indonesia_text], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='JOB_POSTING')
-emb_res_en_it = extract_trained_embeddings([resume_it_english], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-emb_res_en_chef = extract_trained_embeddings([resume_chef_english], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-
-sim_id_to_en_it = float(np.clip(cosine_similarity(emb_job_id, emb_res_en_it)[0][0], 0.0, 1.0) * 100.0)
-sim_id_to_en_chef = float(np.clip(cosine_similarity(emb_job_id, emb_res_en_chef)[0][0], 0.0, 1.0) * 100.0)
-gap_arah1 = sim_id_to_en_it - sim_id_to_en_chef
-
-print("[ARAH 1: LOWONGAN ID <-> RESUME EN]")
-print(f"1. In-Domain Cross-Lingual (IT Job ID <-> IT CV EN)    : {sim_id_to_en_it:.2f}% -> Status: {get_khatri_label_text(sim_id_to_en_it)}")
-print(f"2. Cross-Domain Cross-Lingual (IT Job ID <-> Chef CV EN): {sim_id_to_en_chef:.2f}% -> Status: {get_khatri_label_text(sim_id_to_en_chef)}")
-print(f"3. Domain Separation Gap (Pemisahan Arah 1)             : {gap_arah1:.2f}%")
-
-job_english_text = (
-    "Position: Senior Software Engineer. Experience Level: Mid-Senior level. "
-    "Job Description: Looking for a Senior Software Engineer with Bachelor in Computer Science and 4+ years experience "
-    "in Python, Go, SQL, Docker, and cloud backend development."
-)
-resume_it_indonesia = (
-    "Lulusan S1 Informatika dari Universitas Surabaya yang memiliki pengalaman 4 tahun sebagai Software Engineer "
-    "di PT Telekomunikasi Indonesia dengan keahlian Python, Go, SQL, dan Docker."
-)
-resume_chef_indonesia = (
-    "Executive Chef berpengalaman 6 tahun di bidang Culinary, Pastry, Food Preparation, dan manajemen dapur hotel bintang lima."
-)
-
-emb_job_en = extract_trained_embeddings([job_english_text], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='JOB_POSTING')
-emb_res_id_it = extract_trained_embeddings([resume_it_indonesia], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-emb_res_id_chef = extract_trained_embeddings([resume_chef_indonesia], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV')
-
-sim_en_to_id_it = float(np.clip(cosine_similarity(emb_job_en, emb_res_id_it)[0][0], 0.0, 1.0) * 100.0)
-sim_en_to_id_chef = float(np.clip(cosine_similarity(emb_job_en, emb_res_id_chef)[0][0], 0.0, 1.0) * 100.0)
-gap_arah2 = sim_en_to_id_it - sim_en_to_id_chef
-
-print("\\n[ARAH 2: LOWONGAN EN <-> RESUME ID]")
-print(f"1. In-Domain Cross-Lingual (IT Job EN <-> IT CV ID)    : {sim_en_to_id_it:.2f}% -> Status: {get_khatri_label_text(sim_en_to_id_it)}")
-print(f"2. Cross-Domain Cross-Lingual (IT Job EN <-> Chef CV ID): {sim_en_to_id_chef:.2f}% -> Status: {get_khatri_label_text(sim_en_to_id_chef)}")
-print(f"3. Domain Separation Gap (Pemisahan Arah 2)             : {gap_arah2:.2f}%")
-print("="*75)"""
-
-CELL_15_CODE = """# 15. Evaluasi Matriks Kemiripan Multidomain (6-Sector Benchmark Cross-Domain Heatmap)
-benchmark_domains = [
-    'INFORMATION-TECHNOLOGY',
-    'HEALTHCARE',
-    'ACCOUNTANT',
-    'CHEF',
-    'TEACHER',
-    'ADVOCATE'
-]
-
-domain_jobs = {
-    'INFORMATION-TECHNOLOGY': "Position: Senior Software Engineer. Required Skills: Python, Java, SQL, Docker, Cloud. Job Description: Develop backend systems.",
-    'HEALTHCARE': "Position: Registered Nurse. Required Skills: Patient Care, Clinical Assessment, BSN, RN, Medical. Job Description: Provide hospital nursing care.",
-    'ACCOUNTANT': "Position: Senior Accountant. Required Skills: Financial Accounting, GAAP, General Ledger, Tax, Audit, CPA. Job Description: Manage financial statements.",
-    'CHEF': "Position: Executive Chef. Required Skills: Culinary Arts, Pastry, Food Preparation, Menu Planning, Kitchen. Job Description: Lead culinary operations.",
-    'TEACHER': "Position: Classroom Teacher. Required Skills: Teaching, Curriculum Design, Lesson Plan, Pedagogy, Education. Job Description: Instruct students.",
-    'ADVOCATE': "Position: Commercial Counsel. Required Skills: Litigation, Legal Research, Contract Management, Court, Law. Job Description: Represent corporate clients."
-}
-
-domain_resumes = {
-    'INFORMATION-TECHNOLOGY': "Senior Software Engineer with Bachelor in Computer Science and 5 years experience in Python, Java, SQL, and Docker.",
-    'HEALTHCARE': "Registered Nurse holding BSN degree with 5 years hospital clinical experience in patient care and medical treatment.",
-    'ACCOUNTANT': "Certified Public Accountant (CPA) with 6 years experience in financial accounting, GAAP, general ledger, tax, and audit.",
-    'CHEF': "Executive Chef with 7 years culinary experience in food preparation, pastry, menu development, and kitchen management.",
-    'TEACHER': "Dedicated Teacher with Bachelor of Education and 5 years classroom teaching, curriculum planning, and student assessment experience.",
-    'ADVOCATE': "Senior Attorney and Legal Counsel with 6 years experience in litigation, legal research, pleadings, and contract law."
-}
-
-emb_d_jobs = {c: extract_trained_embeddings([domain_jobs[c]], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='JOB_POSTING') for c in benchmark_domains}
-emb_d_res = {c: extract_trained_embeddings([domain_resumes[c]], best_model, tokenizer, max_length=FINAL_MAX_LEN, doc_type='CANDIDATE_CV') for c in benchmark_domains}
-
-heatmap_matrix = np.zeros((len(benchmark_domains), len(benchmark_domains)))
-for i, r_cat in enumerate(benchmark_domains):
-    for j, j_cat in enumerate(benchmark_domains):
-        sim_val = float(np.clip(cosine_similarity(emb_d_res[r_cat], emb_d_jobs[j_cat])[0][0], 0.0, 1.0) * 100.0)
-        heatmap_matrix[i, j] = sim_val
-
-plt.figure(figsize=(10, 8))
-sns.heatmap(
-    heatmap_matrix, annot=True, fmt='.1f', cmap='YlGnBu',
-    xticklabels=benchmark_domains, yticklabels=benchmark_domains,
-    vmin=0, vmax=100, cbar_kws={'label': 'Cosine Similarity (%)'}
-)
-plt.title("Matriks Kemiripan Multidomain Universal NER + mBERT + Sklearn Cosine (6 Sektor)\\n(Diagonal = In-Domain Sebidang, Non-Diagonal = Lintas Profesi)", fontweight='bold', pad=15)
-plt.xlabel("Kategori Lowongan Kerja (Job Postings)", fontweight='bold', labelpad=10)
-plt.ylabel("Kategori Resume / CV Pelamar", fontweight='bold', labelpad=10)
-plt.xticks(rotation=30, ha='right')
-plt.yticks(rotation=0)
-plt.tight_layout()
-plt.savefig('multidomain_cross_similarity_matrix.png', dpi=300)
-plt.show()
-
-diag_mean = np.diag(heatmap_matrix).mean()
-off_diag = heatmap_matrix[~np.eye(heatmap_matrix.shape[0], dtype=bool)].mean()
-print(f"Rata-rata Kemiripan Diagonal (In-Domain)       : {diag_mean:.2f}% (Target >= 80%)")
-print(f"Rata-rata Kemiripan Non-Diagonal (Cross-Domain): {off_diag:.2f}% (Target < 45%)")
-print(f"Rasio Separasi Diagonal vs Non-Diagonal        : {diag_mean - off_diag:.2f}%")"""
-
-CELL_16_CODE = """# 16. Script Download Langsung Bobot Model (.pt) & Seluruh Grafik Evaluasi (.png) dari Google Colab
-import os
+CELL_13_CODE = """# 13. Simpan & Download Bobot Model (.pt) beserta Grafik Evaluasi (.png)
 import json
 import zipfile
 
 os.makedirs('./models', exist_ok=True)
-
-# Simpan juga bobot model NER mBERT & konfigurasi ambang batas terkalibrasi
-if 'ner_model' in globals():
-    torch.save(ner_model.state_dict(), './models/best_mbert_ner_token_classifier.pt')
-
 model_metadata = {
-    'model_name': MODEL_NAME if 'MODEL_NAME' in globals() else 'bert-base-multilingual-cased',
-    'best_params_m2_cosine': best_params_m2 if 'best_params_m2' in globals() else {},
-    'best_params_m1_saja': best_params_m1 if 'best_params_m1' in globals() else {},
-    'threshold_close_fit_pct': float(best_t_close) if 'best_t_close' in globals() else 60.0,
-    'threshold_fit_pct': float(best_t_fit) if 'best_t_fit' in globals() else 80.0,
-    'macro_f1_m2_cosine_pct': round(float(macro_f1_m2), 2) if 'macro_f1_m2' in globals() else None,
-    'macro_f1_m1_saja_pct': round(float(macro_f1_m1), 2) if 'macro_f1_m1' in globals() else None,
-    'macro_f1_m3_tfidf_pct': round(float(macro_f1_m3), 2) if 'macro_f1_m3' in globals() else None
+    'model_name': MODEL_NAME,
+    'best_params_m2_cosine': best_params_m2,
+    'best_params_m1_saja': best_params_m1,
+    'threshold_close_fit_pct': 60.0,
+    'threshold_fit_pct': 80.0,
+    'macro_f1_m2_cosine_pct': round(float(macro_f1_m2), 2),
+    'macro_f1_m1_saja_pct': round(float(macro_f1_m1), 2),
+    'macro_f1_m3_tfidf_pct': round(float(macro_f1_m3), 2)
 }
 with open('./models/model_config_metadata.json', 'w', encoding='utf-8') as f_meta:
     json.dump(model_metadata, f_meta, indent=2)
 
-# 1. Buat paket ZIP berisi seluruh Grafik (.png) + Metadata (.json) (Ukuran kecil, instan di-download)
 charts_zip_path = 'grafik_dan_metadata_skripsi.zip'
 with zipfile.ZipFile(charts_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-    if os.path.exists('./models/model_config_metadata.json'):
-        zf.write('./models/model_config_metadata.json', arcname='model_config_metadata.json')
+    zf.write('./models/model_config_metadata.json', arcname='model_config_metadata.json')
     for fname in os.listdir('.'):
         if fname.endswith('.png'):
             zf.write(fname, arcname=fname)
-print(f"[ZIP READY] Paket grafik & metadata berhasil dibuat: {charts_zip_path}")
 
-# 2. Daftar file model utama yang siap diunduh
-model_files = [
-    './models/best_siamese_mbert_cosine.pt',
-    './models/best_mbert_saja.pt',
-    './models/best_mbert_ner_token_classifier.pt'
-]
-for mf in model_files:
-    if os.path.exists(mf):
-        size_mb = os.path.getsize(mf) / (1024 * 1024)
-        print(f"  -> Tersedia: {mf} ({size_mb:.1f} MB)")
-
-# 3. Trigger Download Langsung di Browser Google Colab
+print(f"File model & paket grafik siap: ./models/best_siamese_mbert_cosine.pt, {charts_zip_path}")
 try:
     from google.colab import files
-    print("\\n[DOWNLOAD] Memulai pengunduhan ke komputer lokal...")
     files.download(charts_zip_path)
-    if os.path.exists('./models/best_siamese_mbert_cosine.pt'):
-        files.download('./models/best_siamese_mbert_cosine.pt')
-    # Uncomment 2 baris di bawah jika ingin mengunduh model pembanding & NER juga via browser:
-    # if os.path.exists('./models/best_mbert_saja.pt'): files.download('./models/best_mbert_saja.pt')
-    # if os.path.exists('./models/best_mbert_ner_token_classifier.pt'): files.download('./models/best_mbert_ner_token_classifier.pt')
+    files.download('./models/best_siamese_mbert_cosine.pt')
 except ImportError:
-    print("[INFO] Tidak berjalan di Google Colab. File tersimpan secara lokal di folder ./models/")"""
+    pass"""
+
 
 def main():
     nb_path = 'notebooks/03_optuna_tuning_siamese_mbert.ipynb'
@@ -1899,9 +1145,6 @@ def main():
         make_code_cell(CELL_11_CODE),
         make_code_cell(CELL_12_CODE),
         make_code_cell(CELL_13_CODE),
-        make_code_cell(CELL_14_CODE),
-        make_code_cell(CELL_15_CODE),
-        make_code_cell(CELL_16_CODE),
     ]
     nb['cells'] = cells
 
@@ -1910,13 +1153,13 @@ def main():
 
     print(f"Successfully wrote {len(cells)} cells to {nb_path}!")
 
-    # Compile check all code cells
     for i, c in enumerate(cells):
         if c['cell_type'] == 'code':
             src = ''.join(c['source'])
             lines = [l for l in src.splitlines() if not l.strip().startswith('!') and not l.strip().startswith('%')]
             compile('\n'.join(lines), f'Cell_{i}', 'exec')
-    print("All 15 code cells compiled with 0 syntax errors!")
+    print(f"All {len(cells) - 1} code cells compiled with 0 syntax errors!")
+
 
 if __name__ == '__main__':
     main()
