@@ -1,5 +1,120 @@
 [
   {
+    "id": "9ba0cf63-ba64-4098-940b-7e113e7c0917",
+    "cv_filename": "cv_id_01_software_engineer.pdf",
+    "job_title": "Consumer Banking Operations Manager",
+    "job_description": "Seeking an experienced Banking Operations Manager & Default Management Supervisor with a Bachelor of Science in Finance or Business Administration. Must have 10+ years of experience in customer service management, call center operations, cash deposits, account resolution, staffing, scheduling, budgeting, payroll, and process improvement.",
+    "cv_text": "SOFTWARE ENGINEER SOFTWARE ENGINEER Ringkasan Profesional Lulusan S1 Informatika dari Universitas Surabaya dengan pengalaman 3 tahun dalam pengembangan aplikasi backend, REST API, dan sistem terdistribusi. Terbiasa bekerja menggunakan metodologi Agile dan kolaborasi tim lintas fungsi. Keahlian Python, Go, C#, JavaScript, TypeScript, SQL, PostgreSQL, Docker, Kubernetes, FastAPI, Git, Linux, Machine Learning, NLP Pengalaman Kerja Januari 2023 sampai Sekarang - PT Telekomunikasi Indonesia, Surabaya Software Engineer Merancang dan memelihara layanan mikro menggunakan Python, Go, dan PostgreSQL untuk pemrosesan data pelanggan berskala besar. Mengotomatisasi deployment dengan Docker dan Kubernetes. Juni 2022 sampai Desember 2022 - PT Telekomunikasi Indonesia, Surabaya Magang Software Engineer (6 bulan) Mengembangkan modul integrasi API internal menggunakan C# dan SQL serta melakukan pengujian unit otomatis. Pendidikan 2022 - Universitas Surabaya - S1 Informatika (S.Kom)",
+    "similarity_score": 0.1787,
+    "similarity_percentage": 17.87,
+    "status_category": "Not Fit",
+    "extracted_entities": {
+      "EDU": [
+        "S1 Informatika",
+        "S.Kom"
+      ],
+      "ORG": [
+        "Universitas Surabaya",
+        "PT Telekomunikasi Indonesia"
+      ],
+      "SKILL": [
+        "Python",
+        "Go",
+        "JavaScript",
+        "TypeScript",
+        "C#",
+        "SQL",
+        "PostgreSQL",
+        "FastAPI",
+        "Docker",
+        "Kubernetes",
+        "Git",
+        "Machine Learning",
+        "NLP",
+        "Linux",
+        "Agile"
+      ],
+      "ROLE": [
+        "Software Engineer"
+      ],
+      "DUR": [
+        "3 tahun",
+        "6 bulan",
+        "Januari 2023 sampai Sekarang",
+        "Juni 2022 sampai Desember 2022"
+      ],
+      "ner_tagged_preview": "SOFTWARE ENGINEER (ROLE) SOFTWARE ENGINEER Ringkasan Profesional Lulusan S1 Informatika (EDU) dari Universitas Surabaya (ORG) dengan pengalaman 3 tahun (DUR) dalam pengembangan aplikasi backend, REST API, dan sistem terdistribusi. Terbiasa bekerja menggunakan metodologi Agile dan kolaborasi tim lintas fungsi. Keahlian Python (SKILL), Go (SKILL), C# (SKILL), JavaScript (SKILL), TypeScript (SKILL), SQL (SKILL), PostgreSQL (SKILL), Docker, Kubernetes, FastAPI (SKILL), Git, Linux, Machine Learning, NLP Pengalaman Kerja Januari 2023 sampa",
+      "skills": [
+        "Python",
+        "Go",
+        "JavaScript",
+        "TypeScript",
+        "C#",
+        "SQL",
+        "PostgreSQL",
+        "FastAPI",
+        "Docker",
+        "Kubernetes",
+        "Git",
+        "Machine Learning",
+        "NLP",
+        "Linux",
+        "Agile"
+      ],
+      "education": [
+        "S1 Informatika",
+        "S.Kom"
+      ],
+      "experience_years_detected": 4,
+      "detected_domain": "INFORMATION-TECHNOLOGY",
+      "job_detected_domain": "ACCOUNTANT",
+      "raw_cosine_similarity": 0.1787,
+      "fine_tuned_model_loaded": true,
+      "job_entities": {
+        "EDU": [
+          "Bachelor of Science"
+        ],
+        "ORG": [],
+        "SKILL": [
+          "payroll",
+          "budgeting",
+          "cash deposits",
+          "account resolution",
+          "Default Management",
+          "Business Administration",
+          "process improvement",
+          "staffing",
+          "scheduling",
+          "call center",
+          "customer service"
+        ],
+        "ROLE": [
+          "Consumer Banking Operations Manager",
+          "Default Management Supervisor"
+        ],
+        "DUR": [
+          "10+ years of experience"
+        ],
+        "ner_tagged_preview": "Position: Consumer Banking Operations Manager (ROLE). Job Description: Seeking an experienced Banking Operations Manager & Default Management (SKILL) Supervisor with a Bachelor of Science (EDU) in Finance or Business Administration (SKILL). Must have 10+ years of experience (DUR) in customer service management, call center operations, cash deposits (SKILL), account resolution (SKILL), staffing (SKILL), scheduling, budgeting (SKILL), payroll (SKILL), and process improvement (SKILL).",
+        "experience_years_detected": 10
+      },
+      "matched_entities": {
+        "ROLE": [],
+        "SKILL": [],
+        "EDU": [],
+        "DUR": [],
+        "ORG": []
+      }
+    },
+    "cv_text_preview": "SOFTWARE ENGINEER SOFTWARE ENGINEER Ringkasan Profesional Lulusan S1 Informatika dari Universitas Surabaya dengan pengalaman 3 tahun dalam pengembangan aplikasi backend, REST API, dan sistem terdistribusi. Terbiasa bekerja menggunakan metodologi Agile dan kolaborasi tim lintas fungsi. Keahlian Pytho...",
+    "job_description_preview": "Seeking an experienced Banking Operations Manager & Default Management Supervisor with a Bachelor of Science in Finance or Business Administration. Must have 10+ years of experience in customer service management, call center operations, cash deposits, account resolution, staffing, scheduling, budge...",
+    "is_validated": true,
+    "analyzed_by": "admin",
+    "created_at": "2026-11-19T06:13:01.027951+00:00",
+    "validated_by": "admin",
+    "validated_at": "2026-11-19T06:13:38.159049+00:00"
+  },
+  {
     "id": "030a235d-5727-494c-be40-fc34ce8fa180",
     "cv_filename": "11616482.pdf",
     "job_title": "Data Engineer",
