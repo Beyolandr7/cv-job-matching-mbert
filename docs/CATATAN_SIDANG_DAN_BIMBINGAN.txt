@@ -317,6 +317,90 @@ PERTANYAAN 5: MENGAPA DISEBUT SIAMESE mBERT, ARSITEKTUR, DAN PERSIAPAN PRE-TRAIN
      Max length 128 memangkas padding kosong dan mempercepat konvergensi pada proxy 3 epoch.
    - Alasan 3 (Stokastisitas Tuning): Selisih akurasi validasi sangat tipis (>92% vs >96%),
      dan keduanya sama-sama masuk dalam rentang baku rekomendasi Devlin et al. (2019).
+
+
+--------------------------------------------------------------------------------
+BAGIAN 7: PENDALAMAN FORWARD PASS, TRAINING, FEATURE EXTRACTION, NER & WEB PROD
+--------------------------------------------------------------------------------
+
+1. Mekanisme forward(cos_sim, labels) pada PureCosineMarginLoss (5 Langkah):
+   - Input: cos_sim [batch_size] (skor prediksi) & labels [batch_size] (0/1/2).
+   - Step 1 (Target): Memetakan labels ke TARGET_COSINE_SCORES -> 0=0.15, 1=0.70, 2=0.90.
+   - Step 2 (MSE Term): MSE(cos_sim, targets) * 10.0 untuk menarik skor ke pusat kelas.
+   - Step 3 (Class Masking): Membuat mask biner paralel (not_fit_mask, close_fit_mask,
+     fit_mask) agar penalti tiap kelas berjalan serentak di GPU tanpa loop if-else.
+   - Step 4 (Band Penalty ReLU Kuadrat):
+     * Not Fit  : relu(cos - 0.45)^2 (aman <= 0.45; dihukum jika > 0.45)
+     * Close Fit: relu(0.63 - cos)^2 + relu(cos - 0.77)^2 (aman [0.63, 0.77])
+     * Fit      : relu(0.83 - cos)^2 (aman >= 0.83; dihukum jika < 0.83)
+     (Batas margin 0.45 / 0.63-0.77 / 0.83 sengaja lebih ketat dari batas skripsi 0.60 & 0.80).
+   - Step 5 (Total): loss_mse + mean(pen_not + pen_close + pen_fit) * 6.0.
+
+2. Mekanisme Training Hingga Jadi Feature Extractor & Dihitung Sklearn Cosine:
+   - Pre-trained mBERT mengalami anisotropy (teks beda profesi tetap mirip >0.75).
+     Training menata ulang geometri ruang vektor 768-d agar sudut mencerminkan kecocokan.
+   - Saat Training: projection diinisialisasi Matriks Identitas (eye_), forward pass
+     Siamese menghasilkan vektor u & v [B, 768] + ner_logits [B, 128, 11]. Loss gabungan
+     (PureCosineMarginLoss + 0.20 * NER CE Loss) dioptimasi dengan AdamW (lr 2e-5 mBERT,
+     2e-4 head, warmup 10%) + Early Stopping (best Epoch 5, val_loss 0.0365, stop Epoch 10).
+   - Koreksi Istilah: Token (input_ids 128 integer) adalah INPUT; Vektor Fitur [1, 768]
+     (dan ner_logits [1, 128, 11]) adalah OUTPUT model mBERT.
+   - Saat training memakai dot-product PyTorch demi autograd GPU; saat evaluasi & web
+     memakai sklearn.metrics.pairwise.cosine_similarity(u, v). Hasil matematisnya 100% SAMA.
+
+3. Apakah NER Hilang Saat Evaluasi? & Kenapa Dropout/Loss Tidak Aktif Saat Inferensi?
+   - NER TIDAK hilang: encode_text() tetap memanggil encode_with_ner(), sehingga
+     self.ner_head tetap menghitung P(entity) untuk memboboti NER-Guided Pooling.
+     Selain itu input uji sudah diberi header NER, dan web backend juga memanggil
+     predict_ner_spans_dl() (argmax 11 tag BIO) untuk chip entitas di UI.
+   - Dropout dan loss function tidak aktif saat inferensi bukan semata karena sklearn,
+     melainkan aturan baku mode evaluasi Deep Learning (model.eval() & torch.no_grad())
+     agar output deterministik dan tanpa update bobot.
+
+4. Bedanya Model + Cosine vs Tanpa Cosine & Status Feature Extractor:
+   - Model 1 Tanpa Cosine (MBERTSajaClassifier): concat [CLS] CV & Job (1536-d) -> MLP
+     (1536 -> 24 -> 3) + CrossEntropyLoss. Hanya mengeluarkan label diskrit tanpa skor
+     kemiripan 0-100%, tidak bisa pre-compute per dokumen, akurasi 72.44% (vs 99.11% Model 2).
+   - Memakai PyTorch Cosine tetap merupakan Feature Extractor karena cosine similarity
+     tidak punya bobot terlatih (zero learnable weights). Sklearn dipakai saat evaluasi &
+     web agar tahap ekstraksi fitur dan hitung kemiripan terpisah eksplisit sesuai arahan dosen.
+
+5. Cara Perhitungan Vektor [1, 768] & Alasan Hybrid Pooling 50:50:
+   - Urutan di encode_with_ner(): 12-Layer mBERT -> token_embs [1, 128, 768] ->
+     self.ner_head -> ner_logits [1, 128, 11] -> P(entity) = 1 - P('O').
+   - mean_emb (Weighted Mean Pooling): bobot w_t = mask_t * (1.0 + 0.5 * P(entity)),
+     lalu SUM(w_t * h_t) / clamp(SUM(w_t), min=1e-9). Token entitas berbobot hingga 1.5x,
+     [PAD] (mask=0) otomatis bernilai 0 dan dibuang.
+   - cls_emb: diambil raw dari token_embs[:, 0, :] (tidak dikali bobot ner_head).
+   - Alasan 50:50 (0.5 * cls_emb + 0.5 * mean_emb): menggabungkan konteks global ([CLS])
+     dan detail entitas kompetensi (Weighted Mean) secara seimbang (convex combination
+     0.5 + 0.5 = 1.0 menjaga skala vektor tetap stabil).
+   - Proyeksi & L2 Norm: Linear(768->768) lalu dibagi ||p||_2 -> vektor u / v [1, 768].
+
+6. Kegunaan Preprocessing NER & Peran Label BIO (Kunci Jawaban, BUKAN Input!):
+   - 4 Kegunaan: (1) Mencegah entitas penting terpotong max_length=128 karena ditarik ke
+     header depan, (2) Menyeragamkan layout CV/Job ke format [DOC]|[DOMAIN]|[TIER]|[ROLE]|...,
+     (3) Menghasilkan label BIO distant supervision untuk melatih self.ner_head,
+     (4) Mempertajam pemisahan kelas Fit / Close Fit / Not Fit.
+   - PENTING: Label BIO TIDAK dimasukkan sebagai input ke NER, melainkan hanya menjadi
+     kunci jawaban (ground truth) pada CrossEntropyLoss saat training. Input ke model
+     hanyalah input_ids & attention_mask.
+
+7. Alur Kerja Versi Web Production (FastAPI + Next.js):
+   - Startup (1x): main.py memuat tokenizer & best_siamese_mbert_cosine.pt (mode eval).
+   - Klik Analisis (POST /api/v1/matching/analyze):
+     1) pdf_service mengekstrak teks PDF CV (cased dipertahankan).
+     2) Jalur UI: extract_entities_with_dl() (kamus + ner_head argmax BIO) & matched_entities.
+     3) Jalur Vektor: build_ner_enriched_text() -> tokenizer max_length=128 -> encode_text()
+        (torch.no_grad) -> cv_vec [1, 768] & job_vec [1, 768].
+     4) sklearn cosine_similarity -> klasifikasi (>=80% Fit, 60-79.9% Close Fit, <60% Not Fit)
+        -> simpan ke data/analysis_history.json. (Tanpa BIO ground truth & tanpa loss).
+   - Klik Validasi oleh Admin (POST /api/v1/matching/validate):
+     Menambah baris baru ke CSV (dataset_cv_job_matching_3class_1500.csv), menyalakan
+     model.train() sementara + membuat BIO label, menjalankan 4 epoch incremental fine-tuning
+     (layer[-1] + ner_head + projection) dengan 3x data baru + 6 replay CSV, menyimpan
+     bobot ke best_siamese_mbert_cosine.pt (.backup.pt tetap aman), lalu kembali ke eval().
 ================================================================================
+
 
 

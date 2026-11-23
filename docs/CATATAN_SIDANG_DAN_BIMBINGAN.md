@@ -446,4 +446,93 @@ Untuk membuktikan kontribusi setiap komponen pada **225 Data Uji (*Unseen Test S
    > *Kedua, pada representasi teks berbasis entitas (Skill, Pengalaman, Edukasi), informasi inti kandidat terkonsentrasi di awal teks. Sehingga pada tuning ringkas (proxy 3 epoch), **Max Length 128** memangkas padding kosong dan mempercepat konvergensi dibanding panjang 512.*
    > *Ketiga, baik `2e-5` maupun `3e-5` keduanya berada dalam rentang baku yang direkomendasikan oleh paper asli BERT (Devlin et al., 2019) dengan selisih akurasi validasi yang sangat tipis (di atas 96%)."*
 
+---
+
+## BAGIAN 7: PENDALAMAN MEKANISME FORWARD PASS, TRAINING, FEATURE EXTRACTION, NER, & ALUR WEB PRODUCTION
+
+### 7.1. Mekanisme `forward(self, cos_sim, labels)` pada `PureCosineMarginLoss`
+Menerima 2 tensor 1D berukuran `[batch_size]`: **`cos_sim`** (skor kosinus prediksi model) dan **`labels`** (`0 = Not Fit`, `1 = Close Fit`, `2 = Fit`), diproses dalam **5 langkah**:
+1. **Pemetaan Target Ideal:** `targets = TARGET_COSINE_SCORES.to(labels.device)[labels]` memetakan `0 → 0.15`, `1 → 0.70`, `2 → 0.90`.
+2. **MSE Term (`scale_mse = 10.0`):** `loss_mse = self.mse(cos_sim, targets) * 10.0` menarik skor prediksi ke pusat kelasnya dengan magnitudo gradien yang seimbang terhadap *NER Loss*.
+3. ***Class Masking* Biner Paralel:** `not_fit_mask`, `close_fit_mask`, `fit_mask` (`1.0` untuk kelas aktif, `0.0` untuk lainnya) agar penalti ketiga kelas berjalan paralel di GPU tanpa `if-else` *loop*.
+4. ***Band Penalty* Berbasis `ReLU` Kuadrat (`max(0, x)^2`):**
+   - `Not Fit` ($\le 0.45$): `(torch.relu(cos_sim - 0.45) ** 2) * not_fit_mask` $\rightarrow$ penalti `0` selama $\le 0.45$; kena hukuman jika $> 0.45$.
+   - `Close Fit` ($[0.63, 0.77]$): `((torch.relu(0.63 - cos_sim) ** 2) + (torch.relu(cos_sim - 0.77) ** 2)) * close_fit_mask` $\rightarrow$ penalti dua sisi jika $< 0.63$ atau $> 0.77$.
+   - `Fit` ($\ge 0.83$): `(torch.relu(0.83 - cos_sim) ** 2) * fit_mask` $\rightarrow$ penalti `0` selama $\ge 0.83$; kena hukuman jika $< 0.83$.
+   - *(Zona aman `0.45`, `[0.63–0.77]`, `0.83` sengaja lebih ketat daripada ambang skripsi `0.60` & `0.80` sebagai margin penyangga).*
+5. **Agregasi Akhir:** `return loss_mse + (pen_not + pen_close + pen_fit).mean() * 6.0`.
+
+---
+
+### 7.2. Mekanisme Training Hingga Menjadi Feature Extractor & Dihitung dengan `sklearn`
+1. **Mengapa mBERT Harus Di-train Dulu?** Bobot *pre-trained* mBERT mengalami *anisotropy* (teks lamaran beda profesi tetap punya kosinus $> 0.75$). *Training* menata ulang geometri ruang vektor 768-d agar sudut antar-vektor mencerminkan derajat kecocokan rekrutmen.
+2. **Alur Training (Cell 4–6):**
+   - `self.projection (768 → 768)` diinisialisasi Matriks Identitas (`nn.init.eye_`) sebagai *warm start*.
+   - Pasangan Job & CV diproses lewat *Siamese Shared Weights* (`encode_with_ner`) menghasilkan vektor satuan $\mathbf{u}, \mathbf{v}$ (`[B, 768]`) dan `ner_logits` (`[B, 128, 11]`).
+   - Optimasi **Multi-Task Loss**: $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{PureCosineMargin}} + 0.20 \times \mathcal{L}_{\text{NER}}$ menggunakan **AdamW** (*differential LR*: `2e-5` untuk mBERT, `2e-4` untuk `ner_head` & `projection`, *Linear Warmup* 10%, `weight_decay = 0.01`).
+   - *Early Stopping* (`patience = 5`) memilih bobot terbaik di **Epoch ke-5** (`val_loss = 0.0365`, `val_acc = 98.22%`, stop di Epoch 10) $\rightarrow$ disimpan sebagai `best_siamese_mbert_cosine.pt`.
+3. **Koreksi Istilah Penting (Input vs Output):**
+   - **Token (`input_ids`, 128 integer)** = **INPUT** ke mBERT.
+   - **Vektor Fitur / Embedding (`u` & `v`, `[1, 768]` float32 ternormalisasi $L_2$)** + **Hasil NER (`ner_logits`, `[1, 128, 11]`)** = **OUTPUT** dari model mBERT.
+   - Saat *training* memakai *dot product* PyTorch (`torch.sum(u * v, dim=-1)`) demi *autograd* GPU; saat evaluasi (Cell 9, 12) & web memakai **`sklearn.metrics.pairwise.cosine_similarity(u, v)`** di CPU. Hasil matematis keduanya **100% identik** (selisih `0.000000`).
+
+---
+
+### 7.3. Apakah NER Hilang Saat Evaluasi? & Kenapa Dropout/Loss Mati Saat Inferensi?
+- **NER TIDAK hilang saat evaluasi/web:**
+  1. `encode_text()` tetap memanggil `encode_with_ner()`, sehingga `self.ner_head` tetap berjalan aktif untuk menghasilkan probabilitas entitas $P(\text{entity})$ guna **NER-Guided Entity-Weighted Pooling** saat membentuk vektor `[1, 768]`.
+  2. Teks uji (`test_df['job_ner']`, `test_df['cv_ner']`) sudah melalui preprocessing entitas NER.
+  3. Di backend web, `predict_ner_spans_dl()` juga mengambil langsung `ner_logits` (`argmax` 11 tag BIO) untuk menampilkan chip entitas CV vs Job di UI.
+- **Alasan `dropout` & `loss function` tidak aktif saat inferensi:**
+  - Bukan semata karena memakai `sklearn`, melainkan aturan baku seluruh model Deep Learning pada mode evaluasi (`model.eval()` + `torch.no_grad()`): *dropout* dimatikan agar prediksi konsisten/deterministik, dan *loss function* tidak dijalankan karena tidak ada proses *backpropagation* update bobot.
+
+---
+
+### 7.4. Perbandingan Model + Cosine vs Tanpa Cosine & Status Feature Extractor
+- **Model Usulan (`SiameseMBERTCosineExtractor` + `sklearn` Cosine)** vs **Model 1 Tanpa Cosine (`MBERTSajaClassifier`):**
+  - Model 1 menggabungkan (`torch.cat`) `[CLS]` CV & Job menjadi `1.536` dimensi lalu masuk ke MLP `1536 → 24 → 3` (`CrossEntropyLoss`): hanya mengeluarkan label hitam-putih tanpa skor kemiripan `0%–100%`, tidak bisa di-*pre-compute* per dokumen, dan hanya mencapai **`72.44%`** Accuracy (`71.37%` Macro F1) dibanding **`99.11%`** pada Model 2.
+- **PyTorch Cosine vs `sklearn` Cosine:**
+  - Memakai PyTorch Cosine tetap merupakan **model *feature extractor*** (karena operasi cosine tidak punya bobot terlatih / *zero learnable parameters*; model tetap tidak memiliki *classifier head*). Pemakaian `sklearn` pada evaluasi & web dipilih agar peran *feature extraction* dan perhitungan jarak terpisah eksplisit sesuai arahan dosen.
+
+---
+
+### 7.5. Perhitungan Vektor `[1, 768]`, Hybrid Pooling 50:50, & Urutan Operasi di Dalam Model
+**Urutan eksak di dalam `encode_with_ner()`:**
+$$\text{Token } [1,128] \xrightarrow{\text{12-Layer mBERT}} \mathbf{H}\;[1,128,768] \xrightarrow{\text{self.ner\_head}} \text{ner\_logits}\;[1,128,11] \rightarrow p_{\text{entity}}(t) = 1 - P_t(\text{'O'})$$
+1. **Weighted Mean Pooling (`mean_emb`):** Memakai `token_embs` yang **diboboti langsung oleh hasil NER**:
+   $$w_t = \text{mask}_t \times (1.0 + 0.5 \times p_{\text{entity}}(t)), \quad \text{mean\_emb}_d = \frac{\sum_{t=0}^{127} w_t \, h_{t,d}}{\max\left(\sum_{t=0}^{127} w_t,\; 10^{-9}\right)}$$
+   Token entitas mendapat pengaruh hingga ~1.5× lebih kuat, sedangkan `[PAD]` (`mask = 0`) otomatis bernilai `0` dan dibuang.
+2. **Raw `[CLS]` (`cls_emb`):** Diambil langsung (*raw*) dari `token_embs[:, 0, :]` tanpa dikali bobot `ner_head` (namun tetap sadar konteks NER karena input ber-header NER dan mBERT dilatih multi-task).
+3. **Kenapa Digabung 50:50 (`0.5 * cls_emb + 0.5 * mean_emb`)?**
+   - `[CLS]` kuat menangkap konteks/topik global dokumen tetapi melemahkan detail keyword (*Reimers & Gurevych, 2019*); *Weighted Mean* kuat menjaga detail entitas kompetensi tetapi rentan diencerkan kata umum.
+   - Bobot `0.5 : 0.5` (*convex combination*, $0.5 + 0.5 = 1.0$) menyeimbangkan keduanya tanpa mengubah skala vektor dan tanpa menambah hyperparameter ekstra.
+4. **Proyeksi & L2 Norm:** $\mathbf{p} = \mathbf{W}_{\text{proj}}\mathbf{e}_{\text{combined}} + \mathbf{b}_{\text{proj}}$, lalu $\mathbf{u} = \mathbf{p} / \|\mathbf{p}\|_2$ (`[1, 768]`, $\|\mathbf{u}\|_2 = 1.0$).
+
+---
+
+### 7.6. Kegunaan Preprocessing NER & Peran Label BIO (Kunci Jawaban, Bukan Input!)
+- **4 Kegunaan Preprocessing NER (`build_ner_enriched_text` + `encode_bio_labels`):**
+  1. **Melindungi dari pemotongan `max_length = 128`** (menarik `ROLE, SKILL, EDU, DUR, ORG` ke header paling depan agar tidak terpotong di bawah CV).
+  2. **Menyeragamkan format/layout CV & Lowongan** menjadi skema `[DOC] | [DOMAIN] | [TIER] | [ROLE] | [SKILL] | [EDU] | [DUR] | [ORG] || {teks}`.
+  3. **Menghasilkan kunci jawaban BIO (*distant supervision*)** untuk melatih `self.ner_head`.
+  4. **Mempertajam pemisahan kelas** `Fit` vs `Close Fit` vs `Not Fit`.
+- **PENTING — Label BIO BUKAN Input ke Model NER:**
+  - Yang masuk sebagai input ke `self.mbert` $\rightarrow$ `self.ner_head` hanyalah `input_ids` & `attention_mask`.
+  - Label BIO hasil Cell 3 hanya berfungsi sebagai **kunci jawaban (*ground truth*)** di fungsi loss `ner_criterion(ner_logits, true_bio_labels)` saat *training* (analogi: `input_ids` = soal ujian, `ner_logits` = tebakan siswa, `label BIO` = kunci jawaban guru).
+
+---
+
+### 7.7. Alur Kerja Versi Web Production (`FastAPI` + `Next.js`)
+1. **Startup Server (1× di `main.py`):** Memuat tokenizer & `best_siamese_mbert_cosine.pt` ke memori dengan `use_ner_pooling = True` dalam mode `model.eval()`.
+2. **Saat Klik `Analisis` (`POST /api/v1/matching/analyze`):**
+   - `pdf_service` mengekstrak teks PDF CV (*cased* dipertahankan).
+   - **Jalur UI:** `extract_entities_with_dl()` menggabungkan kamus + `self.model.ner_head` (`argmax` BIO) pada CV & Job lalu mencari `matched_entities` (highlight `✓` hijau).
+   - **Jalur Vektor mBERT:** `build_ner_enriched_text()` $\rightarrow$ Tokenizer `max_length = 128` $\rightarrow$ `torch.no_grad()` + `encode_text()` $\rightarrow$ `cv_vec [1, 768]` & `job_vec [1, 768]`.
+   - **Skor & Status:** `sklearn.metrics.pairwise.cosine_similarity(cv_vec, job_vec)` $\rightarrow$ klasifikasi langsung (`Fit ≥ 80%`, `Close Fit 60%–79.9%`, `Not Fit < 60%`) $\rightarrow$ simpan ke `data/analysis_history.json`.
+   - *(Tidak ada label BIO ground-truth maupun loss function pada tahap analisis ini).*
+3. **Khusus Saat Admin Klik `Validasi` (`POST /api/v1/matching/validate`):**
+   - Menambahkan baris `(job, cv, kategori)` ke `data/dataset_cv_job_matching_3class_1500.csv`.
+   - Sementara menyalakan `model.train()`, membuat label BIO (`_encode_bio_labels`), dan menjalankan **4 epoch *incremental fine-tuning*** pada `encoder.layer[-1] + ner_head + projection` (3× data baru + 6 *replay* CSV), menyimpan bobot baru ke `best_siamese_mbert_cosine.pt` (dengan `.backup.pt` tetap terjaga), lalu mengembalikan model ke `model.eval()`.
+
+
 
