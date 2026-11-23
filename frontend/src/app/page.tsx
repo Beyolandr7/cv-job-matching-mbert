@@ -929,7 +929,7 @@ export default function HomePage() {
                 {/* NER ENTITIES TABLE 2.5 SKRIPSI: SYMMETRICAL CV vs JOB DESCRIPTION + MATCH HIGHLIGHTS */}
                 <div>
                   <h3 style={{ fontSize: "0.94rem", fontWeight: 700, marginBottom: "0.55rem" }}>
-                    Deteksi Entitas Kompetensi NER mBERT: CV Pelamar vs Job Description (Tabel 2.5 Skripsi)
+                    Deteksi Entitas Kompetensi NER mBERT: CV Pelamar vs Job Description
                   </h3>
 
                   {(() => {
@@ -973,9 +973,6 @@ export default function HomePage() {
                             fontSize: "0.82rem",
                           }}
                         >
-                          <div style={{ fontWeight: 700, color: allMatchedItems.length > 0 ? "#166534" : "var(--text-secondary)", marginBottom: "0.3rem" }}>
-                            &#10003; Entitas Kompetensi yang Cocok (CV &harr; Job Description): {allMatchedItems.length} Entitas
-                          </div>
                           {allMatchedItems.length > 0 ? (
                             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
                               {allMatchedItems.map((m, idx) => (
